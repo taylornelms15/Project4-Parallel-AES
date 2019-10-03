@@ -33,3 +33,4 @@ For the encryption/decryption steps:
 ## References
 
 * CPU baseline implementation taken from kokke's [tiny-AES-c](https://github.com/kokke/tiny-AES-c.git) implementation
+* Command-line parsing using [cxxopts](https://github.com/jarro2783/cxxopts)
