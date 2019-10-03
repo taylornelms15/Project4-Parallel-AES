@@ -3,7 +3,7 @@
 #include "common.h"
 
 namespace AES {
-    namespace Naive {
+    namespace GPU {
         AES::Common::PerformanceTimer& timer();
 
 		long encryptECB(const uint8_t* key, const uint8_t* input, uint8_t* output, uint64_t bufferLength);

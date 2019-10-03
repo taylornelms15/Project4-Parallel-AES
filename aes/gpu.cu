@@ -7,7 +7,7 @@
 #include <math.h>
 
 namespace AES {
-    namespace Naive {
+    namespace GPU {
         using AES::Common::PerformanceTimer;
         PerformanceTimer& timer()
         {

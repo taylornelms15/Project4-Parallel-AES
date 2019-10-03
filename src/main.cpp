@@ -55,11 +55,11 @@ int main(int argc, char* argv[]) {
 	printCmpResult(ASIZE, a, c);
 
 	printDesc("gpu AES ECB");
-	bufSize = AES::Naive::encryptECB(key, a, d, ASIZE);
-	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Encrypt (std::chrono Measured)");
+	bufSize = AES::GPU::encryptECB(key, a, d, ASIZE);
+	printElapsedTime(AES::GPU::timer().getGpuElapsedTimeForPreviousOperation(), "Encrypt (std::chrono Measured)");
 	printCmpResult(ASIZE, b, d);//might get wonky with the extra padding bytes, but should get most of the way there
-	returnSize = AES::Naive::decryptECB(key, d, e, bufSize);
-	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
+	returnSize = AES::GPU::decryptECB(key, d, e, bufSize);
+	printElapsedTime(AES::GPU::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
 	printCmpResult(ASIZE, a, e);
 
 
@@ -77,11 +77,11 @@ int main(int argc, char* argv[]) {
 	printCmpResult(ASIZE, a, c);
 
 	printDesc("gpu AES CTR");
-	bufSize = AES::Naive::encryptCTR(key, iv, a, d, ASIZE);
-	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Encrypt (std::chrono Measured)");
+	bufSize = AES::GPU::encryptCTR(key, iv, a, d, ASIZE);
+	printElapsedTime(AES::GPU::timer().getGpuElapsedTimeForPreviousOperation(), "Encrypt (std::chrono Measured)");
 	printCmpResult(ASIZE, b, d);//might get wonky with the extra padding bytes, but should get most of the way there
-	returnSize = AES::Naive::decryptCTR(key, iv, d, e, bufSize);
-	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
+	returnSize = AES::GPU::decryptCTR(key, iv, d, e, bufSize);
+	printElapsedTime(AES::GPU::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
 	printCmpResult(ASIZE, a, e);
 
 

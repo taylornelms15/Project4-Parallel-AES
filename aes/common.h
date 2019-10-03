@@ -16,15 +16,11 @@
 #define ASSERTING 1
 
 //tunable parameters
-#define BLOCKSIZE 256
-#define USING_SHAREDMEM 1
-#if USING_SHAREDMEM
-#define SHAREDMEM_KEY 1
-#define SHAREDMEM_SBOX 1
-#else
-#define SHAREDMEM_KEY 0
-#define SHAREDMEM_SBOX 0
-#endif
+static int BLOCKSIZE = 256;
+static bool USING_SHAREDMEM = true;
+static bool SHAREDMEM_KEY = true;
+static bool SHAREDMEM_SBOX = true;
+
 #define SHAREDMEM_SIZE ((SHAREDMEM_KEY ? AES_keyExpSize : 0) + (SHAREDMEM_SBOX ? 256 : 0))
 
 

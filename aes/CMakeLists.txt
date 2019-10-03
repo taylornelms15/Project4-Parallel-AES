@@ -6,13 +6,13 @@ set(HEADER_FILES
     tiny-AES-c/aes.hpp
     common.h
     cpu.h
-    naive.h
+    gpu.h
     )
 
 set(SOURCE_FILES
     common.cu
     cpu.cu
-    naive.cu
+    gpu.cu
     tiny-AES-c/aes.c
     )
 
