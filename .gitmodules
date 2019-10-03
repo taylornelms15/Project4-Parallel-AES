@@ -2,3 +2,7 @@
 	path = aes/tiny-AES-c
 	url = https://github.com/kokke/tiny-AES-c.git
 	branch = master
+[submodule "aes/cxxopts"]
+	path = aes/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
+	branch = master

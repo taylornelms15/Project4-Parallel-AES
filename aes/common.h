@@ -20,8 +20,10 @@ static int BLOCKSIZE = 256;
 static bool USING_SHAREDMEM = true;
 static bool SHAREDMEM_KEY = true;
 static bool SHAREDMEM_SBOX = true;
+static int AES_SIZE = 256;//other options 192, 128
 
 #define SHAREDMEM_SIZE ((SHAREDMEM_KEY ? AES_keyExpSize : 0) + (SHAREDMEM_SBOX ? 256 : 0))
+#define H_AES_KEYLEN (AES_SIZE / 8)
 
 
 //helpers

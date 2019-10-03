@@ -8,7 +8,7 @@
 
 #include <cstdio>
 #include <aes/cpu.h>
-#include <aes/naive.h>
+#include <aes/gpu.h>
 #include "testing_helpers.hpp"
 
 #define OFFPOT 1

@@ -3,7 +3,7 @@
 #include <device_launch_parameters.h>
 #include <device_functions.h>
 #include "common.h"
-#include "naive.h"
+#include "gpu.h"
 #include <math.h>
 
 namespace AES {
