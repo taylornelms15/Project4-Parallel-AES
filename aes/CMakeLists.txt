@@ -5,10 +5,6 @@ set(SOURCE_FILES
     "cpu.cu"
     "naive.h"
     "naive.cu"
-    "efficient.h"
-    "efficient.cu"
-    "thrust.h"
-    "thrust.cu"
     )
 
 cuda_add_library(aes

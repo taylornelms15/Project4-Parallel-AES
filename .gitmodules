@@ -1,0 +1,4 @@
+[submodule "tiny-AES-c"]
+	path = tiny-AES-c
+	url = https://github.com/kokke/tiny-AES-c.git
+	branch = master
