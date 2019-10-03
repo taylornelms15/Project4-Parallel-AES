@@ -14,17 +14,39 @@ namespace AES {
             static PerformanceTimer timer;
             return timer;
         }
-		//####################
-		//FUNCTION DEFINITIONS
-		//####################
+
+		//#####################
+		// FUNCTION DEFINITIONS
+		//#####################
 		
-		__device__ void kShiftIncEx(int N, int index, int* idata, int* odata);
-		__device__ void scanStep(int N, int index, unsigned long stepLevel, int* idata, int* odata);
-		__device__ void kmoveData(int N, int index, int* odata, int* idata);
-		__global__ void kScan(int N, int* idata, int* odata, int numLevels);
+		//__device__ void kShiftIncEx(int N, int index, int* idata, int* odata);
+		//__device__ void scanStep(int N, int index, unsigned long stepLevel, int* idata, int* odata);
+		//__device__ void kmoveData(int N, int index, int* odata, int* idata);
+		//__global__ void kScan(int N, int* idata, int* odata, int numLevels);
+
+		//####################
+		// LITTLE HELPERS
+		//####################
+
+		__host__ __device__ uint64_t getPaddedLength(uint64_t currentLength) {
+			uint64_t newLen = ((currentLength / AES_BLOCKLEN) + 1) * AES_BLOCKLEN;
+			return newLen;
+		}
+
+		//####################
+		// GLOBAL MEMORY
+		//####################
+
+		uint8_t* d_input;
+		uint8_t* d_output;
+
 
 		int* kern_idata;
 		int* kern_odata;
+
+		//####################
+		// KERNEL FUNCTIONS
+		//####################
 
 		__global__ void scanStep(int N, unsigned long stepLevel, int* idata, int* odata) {
 			int index = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -89,5 +111,93 @@ namespace AES {
 			cudaFree(kern_odata);
 
         }
+
+		//######################
+		// ENCRYPTION MAIN FUNCS
+		//######################
+
+		long encryptECB(const uint8_t* key, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			uint64_t paddedLength = getPaddedLength(bufferLength);
+			uint8_t lenDiffArray[AES_BLOCKLEN] = {};
+			uint8_t lenDiff = (uint8_t)(paddedLength - bufferLength);
+			for (uint8_t i = 0; i < AES_BLOCKLEN; i++) {
+				lenDiffArray[i] = lenDiff;
+			}
+
+			//malloc space for padded input/output
+			cudaMalloc((void**)&d_input, paddedLength * sizeof(uint8_t));
+			cudaMalloc((void**)&d_output, paddedLength * sizeof(uint8_t));
+			checkCUDAError("CudaMalloc");
+			//copy input
+			cudaMemcpy(d_input, input, bufferLength * sizeof(uint8_t), cudaMemcpyHostToDevice);
+			checkCUDAError("CudaMemcpy");
+			//pad input
+			cudaMemcpy(d_input + bufferLength, lenDiffArray, lenDiff, cudaMemcpyHostToDevice);
+			checkCUDAError("CudaMemcpy");
+
+			timer().startGpuTimer();
+
+			//TODO: actually encrypt
+
+
+
+			timer().endGpuTimer();
+
+			//copy output
+			cudaMemcpy(output, d_output, paddedLength * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+			checkCUDAError("CudaMemcpy");
+
+			//free input/output
+			cudaFree((void*)d_input);
+			cudaFree((void*)d_output);
+			checkCUDAError("CudaFree");
+			return (long)paddedLength;
+		}
+
+		long decryptECB(const uint8_t* key, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			return -1;
+		}
+
+		long encryptCTR(const uint8_t* key, const uint8_t* iv, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			uint64_t paddedLength = getPaddedLength(bufferLength);
+			uint8_t lenDiffArray[AES_BLOCKLEN] = {};
+			uint8_t lenDiff = (uint8_t)(paddedLength - bufferLength);
+			for (uint8_t i = 0; i < AES_BLOCKLEN; i++) {
+				lenDiffArray[i] = lenDiff;
+			}
+
+			//malloc space for padded input/output
+			cudaMalloc((void**)&d_input, paddedLength * sizeof(uint8_t));
+			cudaMalloc((void**)&d_output, paddedLength * sizeof(uint8_t));
+			checkCUDAError("CudaMalloc");
+			//copy input
+			cudaMemcpy(d_input, input, bufferLength * sizeof(uint8_t), cudaMemcpyHostToDevice);
+			checkCUDAError("CudaMemcpy");
+			//pad input
+			cudaMemcpy(d_input + bufferLength, lenDiffArray, lenDiff, cudaMemcpyHostToDevice);
+			checkCUDAError("CudaMemcpy");
+
+			timer().startGpuTimer();
+
+			//TODO: actually encrypt
+
+
+
+			timer().endGpuTimer();
+
+			//copy output
+			cudaMemcpy(output, d_output, paddedLength * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+			checkCUDAError("CudaMemcpy");
+
+			//free input/output
+			cudaFree((void*)d_input);
+			cudaFree((void*)d_output);
+			checkCUDAError("CudaFree");
+			return (long)paddedLength;
+		}
+
+		long decryptCTR(const uint8_t* key, const uint8_t* iv, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			return -1;
+		}
     }
 }

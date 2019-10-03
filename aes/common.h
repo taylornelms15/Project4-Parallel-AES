@@ -15,10 +15,22 @@
 
 #define ASSERTING 1
 
+//tunable parameters
+#define BLOCKSIZE 256
+#define USING_SHAREDMEM 1
+#if USING_SHAREDMEM
+#define SHAREDMEM_KEY 1
+#define SHAREDMEM_SBOX 1
+#else
+#define SHAREDMEM_KEY 0
+#define SHAREDMEM_SBOX 0
+#endif
+#define SHAREDMEM_SIZE ((SHAREDMEM_KEY ? AES_keyExpSize : 0) + (SHAREDMEM_SBOX ? 256 : 0))
+
+
+//helpers
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
-
-#define BLOCKSIZE 256
 
 /**
  * Check for CUDA errors; print and exit if there was a problem.

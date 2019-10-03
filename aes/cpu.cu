@@ -92,7 +92,7 @@ namespace AES {
 			memcpy(output, input, bufferLength);
 
 			//decrypt
-			AES_CTR_xcrypt_buffer(&context, output, bufferLength);
+			AES_CTR_xcrypt_buffer(&context, output, (uint32_t)bufferLength);
 
 			//unpad data
 			long outputLength = (long)AES::Common::unpadData(output, bufferLength);

@@ -28,6 +28,8 @@ int main(int argc, char* argv[]) {
 	uint8_t* a = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
 	uint8_t* b = (uint8_t*)malloc((ASIZE + AES_BLOCKLEN) * sizeof(uint8_t));
 	uint8_t* c = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
+	uint8_t* d = (uint8_t*)malloc((ASIZE + AES_BLOCKLEN) * sizeof(uint8_t));
+	uint8_t* e = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
 
 
 	uint8_t key[AES_KEYLEN];
@@ -52,6 +54,14 @@ int main(int argc, char* argv[]) {
 	printElapsedTime(AES::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
 	printCmpResult(ASIZE, a, c);
 
+	printDesc("gpu AES ECB");
+	bufSize = AES::Naive::encryptECB(key, a, d, ASIZE);
+	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Encrypt (std::chrono Measured)");
+	printCmpResult(ASIZE, b, d);//might get wonky with the extra padding bytes, but should get most of the way there
+	returnSize = AES::Naive::decryptECB(key, d, e, bufSize);
+	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
+	printCmpResult(ASIZE, a, e);
+
 
 
 	printf("\n");
@@ -66,9 +76,19 @@ int main(int argc, char* argv[]) {
 	printElapsedTime(AES::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
 	printCmpResult(ASIZE, a, c);
 
+	printDesc("gpu AES CTR");
+	bufSize = AES::Naive::encryptCTR(key, iv, a, d, ASIZE);
+	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Encrypt (std::chrono Measured)");
+	printCmpResult(ASIZE, b, d);//might get wonky with the extra padding bytes, but should get most of the way there
+	returnSize = AES::Naive::decryptCTR(key, iv, d, e, bufSize);
+	printElapsedTime(AES::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
+	printCmpResult(ASIZE, a, e);
+
 
     system("pause"); // stop Win32 console from closing on exit
 	free(a);
 	free(b);
 	free(c);
+	free(d);
+	free(e);
 }
