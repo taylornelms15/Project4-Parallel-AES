@@ -3,9 +3,9 @@
 
 #include "common.h"
 
-namespace StreamCompaction {
+namespace AES {
     namespace CPU {
-        using StreamCompaction::Common::PerformanceTimer;
+        using AES::Common::PerformanceTimer;
         PerformanceTimer& timer()
         {
 	        static PerformanceTimer timer;

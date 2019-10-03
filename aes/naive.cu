@@ -6,9 +6,9 @@
 #include "naive.h"
 #include <math.h>
 
-namespace StreamCompaction {
+namespace AES {
     namespace Naive {
-        using StreamCompaction::Common::PerformanceTimer;
+        using AES::Common::PerformanceTimer;
         PerformanceTimer& timer()
         {
             static PerformanceTimer timer;

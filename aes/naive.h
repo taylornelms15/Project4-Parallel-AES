@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-namespace StreamCompaction {
+namespace AES {
     namespace Naive {
-        StreamCompaction::Common::PerformanceTimer& timer();
+        AES::Common::PerformanceTimer& timer();
 
         void scan(int n, int *odata, const int *idata);
     }

@@ -32,12 +32,8 @@ inline int ilog2ceil(int x) {
     return x == 1 ? 0 : ilog2(x - 1) + 1;
 }
 
-namespace StreamCompaction {
+namespace AES {
     namespace Common {
-        __global__ void kernMapToBoolean(int n, int *bools, const int *idata);
-
-        __global__ void kernScatter(int n, int *odata,
-                const int *idata, const int *bools, const int *indices);
 
 	    /**
 	    * This class is used for timing the performance
