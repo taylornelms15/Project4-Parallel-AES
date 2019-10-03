@@ -6,3 +6,7 @@
 	path = aes/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
 	branch = master
+[submodule "cxxopts"]
+	path = cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
+	branch = master
