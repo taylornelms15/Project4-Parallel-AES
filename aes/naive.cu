@@ -37,27 +37,6 @@ namespace AES {
 			return;
 		}//scanStep
 
-		/**
-		* Note: the numLevels is that log_2(N), and should be computed GPU-side
-		*
-		__global__ void kScan(int N, int* idata, int* odata, int numLevels) {
-			int index = threadIdx.x + (blockIdx.x * blockDim.x);
-			int currentLevel = 0;
-			unsigned long stepLevel = 1;
-			while (currentLevel < numLevels) {
-				stepLevel = 1 << currentLevel;
-				scanStep(N, index, stepLevel, idata, odata);
-				__syncthreads();
-				kmoveData(N, index, odata, idata);
-				__syncthreads();
-				currentLevel++;
-			}//while
-
-			kShiftIncEx(N, index, idata, odata);
-
-		}//kScan
-		*/
-
 		void scanWrapper(int N, int* idata, int* odata, int numLevels) {
 			dim3 bpg = dim3((N + BLOCKSIZE - 1) / BLOCKSIZE);
 			dim3 tpb = dim3(BLOCKSIZE);
@@ -72,18 +51,6 @@ namespace AES {
 			}//while
 
 		}//scanWrapper
-
-		/**
-		* Shifts our inclusive scan over to be an exclusive scan
-		*
-		__device__ void kShiftIncEx(int N, int index, int* idata, int* odata) {
-			if (index >= N) return;
-			else if (index == 0) odata[index] = 0;
-			else {
-				odata[index] = idata[index - 1];
-			}
-		}//kShiftIncEx
-		*/
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.

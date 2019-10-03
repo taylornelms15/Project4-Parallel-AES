@@ -12,74 +12,97 @@ namespace AES {
 	        return timer;
         }
 
-        /**
-         * CPU scan (prefix sum).
-         * For performance analysis, this is supposed to be a simple for loop.
-         * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
-         */
-        void scan(int n, int *odata, const int *idata) {
-	        timer().startCpuTimer();
-			int sum = 0;
-			for (int i = 0; i < n; i++) {
-				odata[i] = sum;
-				sum += idata[i];
-			}//for
-            // TODO
-	        timer().endCpuTimer();
-        }
+		long encryptECB(const uint8_t* key, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			timer().startCpuTimer();
+			//create context/key
+			struct AES_ctx context;
+			AES_init_ctx(&context, key);
 
-        /**
-         * CPU stream compaction without using the scan function.
-         *
-         * @returns the number of elements remaining after compaction.
-         */
-        int compactWithoutScan(int n, int *odata, const int *idata) {
-	        timer().startCpuTimer();
-			int numGood = 0;
-			for (int i = 0; i < n; i++) {
-				if (idata[i]) {
-					odata[numGood++] = idata[i];
-				}//if
-			}//for
-	        timer().endCpuTimer();
-			return numGood;
-        }
+			//encryption happens in place, so start by moving input to output
+			memcpy(output, input, bufferLength);
+			long inputsize = (long)AES::Common::padData(output, bufferLength);
 
-        /**
-         * CPU stream compaction using scan and scatter, like the parallel version.
-         *
-         * @returns the number of elements remaining after compaction.
-         */
-        int compactWithScan(int n, int *odata, const int *idata) {
-	        timer().startCpuTimer();
-			int* tempPresence = (int*)malloc(n * sizeof(int));
-			int* scannedPresence = (int*)malloc(n * sizeof(int));
-			for (int i = 0; i < n; i++) {
-				if (idata[i]) {
-					tempPresence[i] = 1;
-				}//if
-				else tempPresence[i] = 0;
-			}//for
+			//encrypt
+			for (long i = 0; i < inputsize / AES_BLOCKLEN; i++) {
+				AES_ECB_encrypt(&context, output + i * AES_BLOCKLEN);
+			}
+			timer().endCpuTimer();
+
+			return inputsize;
+
+		}//encryptECB
+
+		long decryptECB(const uint8_t* key, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			timer().startCpuTimer();
+			//create context/key
+			struct AES_ctx context;
+			AES_init_ctx(&context, key);
+
+#if ASSERTING
+			assert(bufferLength % AES_BLOCKLEN == 0);
+#endif
+
+			//decryption happens in place, so start by moving input to output
+			memcpy(output, input, bufferLength);
+
 			
-			//scan(n, scannedPresence, tempPresence);
-
-			int sum = 0;
-			for (int i = 0; i < n; i++) {
-				scannedPresence[i] = sum;
-				sum += tempPresence[i];
+			//decrypt
+			for (long i = 0; i < bufferLength / AES_BLOCKLEN; i++) {
+				AES_ECB_decrypt(&context, output + i * AES_BLOCKLEN);
 			}//for
 
-			int numElements = scannedPresence[n - 1];
-			for (int i = 0; i < n; i++) {
-				if (idata[i]) {
-					odata[scannedPresence[i]] = idata[i];
-				}//if
-			}//for
+			//unpad data
+			long outputLength = (long)AES::Common::unpadData(output, bufferLength);
 
-			free(tempPresence);
-			free(scannedPresence);
-	        timer().endCpuTimer();
-			return  numElements;
-        }
+			timer().endCpuTimer();
+
+			return outputLength;
+
+		}//decryptECB
+
+		long encryptCTR(const uint8_t* key, const uint8_t* iv, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			timer().startCpuTimer();
+			//create context/key
+			struct AES_ctx context;
+			AES_init_ctx_iv(&context, key, iv);
+
+			//encryption happens in place, so start by moving input to output
+			memcpy(output, input, bufferLength);
+			long inputsize = (long)AES::Common::padData(output, bufferLength);
+
+			//encrypt
+			AES_CTR_xcrypt_buffer(&context, output, inputsize);
+
+
+			timer().endCpuTimer();
+			return inputsize;
+		}//encryptCTR
+
+		long decryptCTR(const uint8_t* key, const uint8_t* iv, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
+			timer().startCpuTimer();
+			//create context/key
+			struct AES_ctx context;
+			AES_init_ctx_iv(&context, key, iv);
+
+#if ASSERTING
+			assert(bufferLength % AES_BLOCKLEN == 0);
+#endif
+
+			//decryption happens in place, so start by moving input to output
+			memcpy(output, input, bufferLength);
+
+			//decrypt
+			AES_CTR_xcrypt_buffer(&context, output, bufferLength);
+
+			//unpad data
+			long outputLength = (long)AES::Common::unpadData(output, bufferLength);
+
+			timer().endCpuTimer();
+
+			return outputLength;
+
+		}//decryptCTR
+
+
     }
 }

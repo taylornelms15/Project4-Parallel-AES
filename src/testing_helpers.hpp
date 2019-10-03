@@ -6,6 +6,8 @@
 #include <string>
 #include <ctime>
 
+#include "aes.h"
+
 template<typename T>
 int cmpArrays(int n, T *a, T *b) {
     for (int i = 0; i < n; i++) {
@@ -43,18 +45,34 @@ void zeroArray(int n, int *a) {
     }
 }
 
+void zeroArray(int n, uint8_t* a) {
+	for (int i = 0; i < n; i++) {
+		a[i] = 0;
+	}
+}
+
 void onesArray(int n, int *a) {
 	for (int i = 0; i < n; i++) {
 		a[i] = 1;
 	}
 }
 
-void genArray(int n, int *a, int maxval) {
-    srand(time(nullptr));
+void genArray(int n, int *a, int maxval, const unsigned int* seed) {
+	if (seed != NULL) srand(*seed);
+    else srand(time(nullptr));
 
     for (int i = 0; i < n; i++) {
-        a[i] = rand() % maxval;
+		a[i] = rand() % maxval;
     }
+}
+
+void genArray(int n, uint8_t* a, const unsigned int* seed) {
+	if (seed != NULL) srand(*seed);
+	else srand(time(nullptr));
+
+	for (int i = 0; i < n; i++) {
+		a[i] = (uint8_t)(rand() & 0x000000ff);
+	}
 }
 
 void printArray(int n, int *a, bool abridged = false) {

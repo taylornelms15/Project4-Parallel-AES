@@ -9,6 +9,11 @@
 #include <algorithm>
 #include <chrono>
 #include <stdexcept>
+#include <assert.h>
+
+#include "aes.hpp"
+
+#define ASSERTING 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -34,6 +39,21 @@ inline int ilog2ceil(int x) {
 
 namespace AES {
     namespace Common {
+
+		/**
+		Adds requisite padding onto current data buffer
+		Requires that up to an additional AES_BLOCKLEN bytes be available at the end.
+		@return length of padded data
+		*/
+		uint64_t padData(uint8_t* data, uint64_t currentLength);
+
+		/**
+		Does not remove anything in particular; just finds the new length to which to truncate the data
+		Expects the currentLength to be a multiple of AES_BLOCKLEN
+		Expects this to be the plaintext padded in a way similar to padData
+		@return length of unpadded (original) data
+		*/
+		uint64_t unpadData(uint8_t* data, uint64_t currentLength);
 
 	    /**
 	    * This class is used for timing the performance

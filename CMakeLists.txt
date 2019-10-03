@@ -22,11 +22,24 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 include_directories(.)
+include_directories(aes/tiny-AES-c)
 add_subdirectory(aes)
 
-cuda_add_executable(${CMAKE_PROJECT_NAME}
-    "src/main.cpp"
+set(sources
+   src/main.cpp
+   )
+
+set(headers
+    src/testing_helpers.hpp
     )
+
+list(SORT headers)
+list(SORT sources)
+
+source_group(Headers FILES ${headers})
+source_group(Sources FILES ${sources})
+
+cuda_add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     aes
