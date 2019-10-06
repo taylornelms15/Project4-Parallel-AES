@@ -7,13 +7,17 @@
  */
 
 #include <cstdio>
+#include <aes/common.h>
 #include <aes/cpu.h>
 #include <aes/gpu.h>
+#include <cxxopts.hpp>
 #include "testing_helpers.hpp"
 
 #define OFFPOT 1
 
 const unsigned int RANDSEED = 0xbad1bad2;
+const unsigned int RANDSEED2 = 0x0123fed5;
+const unsigned int RANDSEED3 = 0x56781234;
 
 const int SIZE = 1 << 20; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
@@ -25,6 +29,25 @@ const int ASIZE = SIZE
 
 
 int main(int argc, char* argv[]) {
+	//parse arguments
+	cxxopts::Options options("aes_test", "Program to test parallel AES encryption/decryption");
+	options.add_options()
+		("k,keysize", "Size of AES key", cxxopts::value<int>()->default_value("256"))
+		("b,blocksize", "Size of cuda blocks to use", cxxopts::value<int>()->default_value("256"))
+		("y,sharedmemKey", "Whether storing key in shared memory")
+		("s,sharedmemSBox", "Whether storing sbox in shared memory")
+		;
+	auto result = options.parse(argc, argv);
+	bool sharedmem = false; bool sharedmemKey = false; bool sharedmemSBox = false;
+	int blocksize; int keysize;
+	sharedmemKey = result.count("sharedmemKey") > 0;
+	sharedmemSBox = result.count("sharedmemSBox") > 0;
+	blocksize = result["blocksize"].as<int>();
+	keysize = result["keysize"].as<int>();
+
+	ingestCommandLineOptions(blocksize, keysize, sharedmemKey, sharedmemSBox);
+
+	//Run tests
 	uint8_t* a = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
 	uint8_t* b = (uint8_t*)malloc((ASIZE + AES_BLOCKLEN) * sizeof(uint8_t));
 	uint8_t* c = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
@@ -34,8 +57,8 @@ int main(int argc, char* argv[]) {
 
 	uint8_t key[AES_KEYLEN];
 	uint8_t iv[AES_BLOCKLEN];
-	genArray(AES_KEYLEN, key, &RANDSEED);
-	genArray(AES_BLOCKLEN, iv, &RANDSEED);
+	genArray(AES_KEYLEN, key, &RANDSEED2);
+	genArray(AES_BLOCKLEN, iv, &RANDSEED3);
 	long bufSize, returnSize;
 
 	genArray(ASIZE, a, &RANDSEED);

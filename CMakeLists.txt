@@ -23,6 +23,7 @@ endif()
 
 include_directories(.)
 include_directories(aes/tiny-AES-c)
+include_directories(cxxopts/include)
 add_subdirectory(aes)
 
 set(sources

@@ -59,7 +59,7 @@ void onesArray(int n, int *a) {
 
 void genArray(int n, int *a, int maxval, const unsigned int* seed) {
 	if (seed != NULL) srand(*seed);
-    else srand(time(nullptr));
+    else srand((unsigned int)time(nullptr));
 
     for (int i = 0; i < n; i++) {
 		a[i] = rand() % maxval;
@@ -68,7 +68,7 @@ void genArray(int n, int *a, int maxval, const unsigned int* seed) {
 
 void genArray(int n, uint8_t* a, const unsigned int* seed) {
 	if (seed != NULL) srand(*seed);
-	else srand(time(nullptr));
+	else srand((unsigned int)time(nullptr));
 
 	for (int i = 0; i < n; i++) {
 		a[i] = (uint8_t)(rand() & 0x000000ff);
