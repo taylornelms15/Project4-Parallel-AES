@@ -14,7 +14,7 @@
 #include "aes.hpp"
 
 #define ASSERTING 1
-#define USING_VECTORS 1
+#define USING_VECTORS 0
 #define BYTES_PER_ABLOCK 16
 
 //some constants
@@ -22,16 +22,22 @@
 #define SHAREDMEM_SBOXMASK 0x02
 
 //tunable parameters
-static int BLOCKSIZE = 256;
-static bool USING_SHAREDMEM = true;
-static bool SHAREDMEM_KEY = true;
-static bool SHAREDMEM_SBOX = true;
-static int AES_SIZE = 256;//other options 192, 128
-static int AES_KEY_EXP_SIZE = 240;
+extern int BLOCKSIZE;
+extern bool USING_PARAMETER;
+extern bool USING_SHAREDMEM;
+extern bool SHAREDMEM_KEY;
+extern bool SHAREDMEM_SBOX;
+extern bool QUIET;
+extern int AES_SIZE;//other options 192, 128
+extern int AES_KEY_EXP_SIZE;
+extern int ABLOCKS_PER_THREAD;
 
 bool ingestCommandLineOptions(int aes_size = 256, int blocksize = 256, 
+							int blocksperthread = 1,
 							bool sharedmem_key = true, 
-							bool sharedmem_sbox = true);
+							bool sharedmem_sbox = true,
+							bool parameter = false,
+							bool quiet = false);
 //TODO: extract AES_keyExpSize sensibly
 #define SHAREDMEM_SIZE ((SHAREDMEM_KEY ? AES_keyExpSize : 0) + (SHAREDMEM_SBOX ? 256 : 0))
 #define H_AES_KEYLEN (AES_SIZE / 8)

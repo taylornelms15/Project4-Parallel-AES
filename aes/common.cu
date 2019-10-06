@@ -1,5 +1,15 @@
 #include "common.h"
 
+int BLOCKSIZE = 256;
+bool USING_PARAMETER = false;
+bool USING_SHAREDMEM = true;
+bool SHAREDMEM_KEY = true;
+bool SHAREDMEM_SBOX = true;
+bool QUIET = false;
+int AES_SIZE = 256;//other options 192, 128
+int AES_KEY_EXP_SIZE = 240;
+int ABLOCKS_PER_THREAD = 1;
+
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     cudaError_t err = cudaGetLastError();
     if (cudaSuccess == err) {
@@ -15,8 +25,11 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 }
 
 bool ingestCommandLineOptions(int aes_size, int blocksize,
+	int blocksperthread,
 	bool sharedmem_key,
-	bool sharedmem_sbox) {
+	bool sharedmem_sbox,
+	bool parameter,
+	bool quiet) {
 
 	if (aes_size == 256 || aes_size == 192 || aes_size == 128) {
 		AES_SIZE = aes_size;
@@ -32,9 +45,16 @@ bool ingestCommandLineOptions(int aes_size, int blocksize,
 		printf("ERROR: invalid block size, must be power of 2\n");
 		return false;
 	}
+	if (blocksperthread < 1 || blocksperthread > 1024) {
+		printf("ERROR: invalid blocksperthread argument, must be between 1 and 1024\n");
+		return false;
+	}
+	ABLOCKS_PER_THREAD = blocksperthread;
 	SHAREDMEM_KEY = sharedmem_key;
 	SHAREDMEM_SBOX = sharedmem_sbox;
 	USING_SHAREDMEM = SHAREDMEM_KEY | SHAREDMEM_SBOX;
+	USING_PARAMETER = parameter;
+	QUIET = quiet;
 
 	switch (AES_SIZE) {
 	case 256:
@@ -50,7 +70,10 @@ bool ingestCommandLineOptions(int aes_size, int blocksize,
 		break;
 	}
 
-	printf("block %d, key %d, shared %d, skey %d, sbox %d\n", AES_SIZE, BLOCKSIZE, USING_SHAREDMEM, SHAREDMEM_KEY, SHAREDMEM_SBOX);
+	if (!QUIET) {
+		printf("block %d, key %d, shared %d, skey %d, sbox %d, parameter %d\n",
+			BLOCKSIZE, AES_SIZE, USING_SHAREDMEM, SHAREDMEM_KEY, SHAREDMEM_SBOX, USING_PARAMETER);
+	}
 
 	return true;
 }//ingestCommandLineOptions

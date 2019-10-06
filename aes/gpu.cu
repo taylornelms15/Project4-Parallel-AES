@@ -62,10 +62,8 @@ namespace AES {
 		// FUNCTION DEFINITIONS
 		//#####################
 		
-		//__device__ void kShiftIncEx(int N, int index, int* idata, int* odata);
-		//__device__ void scanStep(int N, int index, unsigned long stepLevel, int* idata, int* odata);
-		//__device__ void kmoveData(int N, int index, int* odata, int* idata);
-		//__global__ void kScan(int N, int* idata, int* odata, int numLevels);
+		__device__ void copyDataToSharedMemory(uint8_t* shared, uint8_t** roundkey, uint8_t** sbox, uint8_t** rsbox, int roundKeySize, uint8_t sharedMemFlags);
+
 
 		//####################
 		// LITTLE HELPERS
@@ -144,6 +142,7 @@ namespace AES {
 		uint8_t* d_input;
 		uint8_t* d_output;
 		uint8_t* d_roundkey;
+		uint8_t* d_iv;
 		uint8_t* d_sbox;
 		uint8_t* d_rsbox;
 
@@ -332,29 +331,61 @@ namespace AES {
 		__device__ void addKey(State* state, const uint8_t* roundKey, uint8_t roundNum) {
 
 			for (uint8_t i = 0; i < 4; i++) {
+				unsigned rkbase = (roundNum * Nb * 4) + (i * Nb);
 #if USING_VECTORS
 				//uchar4* keySegment = (uchar4*) &(roundKey[(roundNum * Nb * 4) + (i * Nb)]);
 				//state->data[i] = state->data[i] ^ *keySegment;
-				
-				state->data[i].x ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 0];
-				state->data[i].y ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 1];
-				state->data[i].z ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 2];
-				state->data[i].w ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 3];
+
+				state->data[i].x ^= roundKey[rkbase + 0];
+				state->data[i].y ^= roundKey[rkbase + 1];
+				state->data[i].z ^= roundKey[rkbase + 2];
+				state->data[i].w ^= roundKey[rkbase + 3];
 				
 #else
-				state->data[i][0] ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 0];
-				state->data[i][1] ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 1];
-				state->data[i][2] ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 2];
-				state->data[i][3] ^= roundKey[(roundNum * Nb * 4) + (i * Nb) + 3];
+				state->data[i][0] ^= roundKey[rkbase + 0];
+				state->data[i][1] ^= roundKey[rkbase + 1];
+				state->data[i][2] ^= roundKey[rkbase + 2];
+				state->data[i][3] ^= roundKey[rkbase + 3];
 #endif
 			}
 
 		}//addKey
 
+		__device__ void incrementIvByValue(uint8_t* iv, uint64_t addition) {
+			uint64_t rawLow =   ((uint64_t)iv[15]) << 0 |
+								((uint64_t)iv[14]) << 8 |
+								((uint64_t)iv[13]) << 16 |
+								((uint64_t)iv[12]) << 24 |
+								((uint64_t)iv[11]) << 32 |
+								((uint64_t)iv[10]) << 40 |
+								((uint64_t)iv[9]) << 48 |
+								((uint64_t)iv[8]) << 56;
+			uint64_t rawHi =    ((uint64_t)iv[7]) << 0 |
+								((uint64_t)iv[6]) << 8 |
+								((uint64_t)iv[5]) << 16 |
+								((uint64_t)iv[4]) << 24 |
+								((uint64_t)iv[3]) << 32 |
+								((uint64_t)iv[2]) << 40 |
+								((uint64_t)iv[1]) << 48 |
+								((uint64_t)iv[0]) << 56;
+			uint64_t newLow = rawLow + addition;
+			uint64_t newHi	= rawHi + (newLow < rawLow ? 1 : 0);
+			for (int i = 0; i < 8; i++) {
+				iv[15 - i] = (uint8_t)((newLow >> 8 * i) & 0xff);
+			}
+			for (int i = 0; i < 8; i++) {
+				iv[7 - i] = (uint8_t)((newHi >> 8 * i) & 0xff);
+			}
+			
+		}//incrementIvByValue
+
 		//######################
 		// ENCRYPTION GLOBALS
 		//######################
 
+		/**
+		Encrypts a single 16-byte block
+		*/
 		__device__ void Encrypt(uint8_t* idata, uint8_t* odata,
 							uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox) {
 			//set up current state
@@ -428,6 +459,32 @@ namespace AES {
 			}//for each block we're encrypting: do it!
 		}
 
+		__global__ void encryptCTRUsingGlobalMem(uint8_t* idata, uint8_t* odata,
+											uint8_t* roundkey, uint8_t* iv,
+											uint8_t* sbox, uint8_t* rsbox,
+											uint64_t bytesToEncrypt, int numAblocksPerThread) {
+			int index = blockIdx.x * blockDim.x + threadIdx.x;
+			long byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
+			if (byteOffset >= bytesToEncrypt) return;
+
+			uint8_t myIv[AES_BLOCKLEN];
+
+			for (int i = 0; i < numAblocksPerThread; i++) {
+				int blockOffset = index * numAblocksPerThread + i;
+				memcpy(myIv, iv, AES_BLOCKLEN * sizeof(uint8_t));
+				incrementIvByValue(myIv, blockOffset);
+
+				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
+				uint8_t* myInputStartPoint = idata + thisOffset;
+				uint8_t* myOutputStartPoint = odata + thisOffset;
+
+				Encrypt(myIv, myIv, roundkey, sbox, rsbox);
+				for (uint8_t j = 0; j < AES_BLOCKLEN; j++) {
+					myOutputStartPoint[j] = myIv[j] ^ myInputStartPoint[j];
+				}
+			}//for each block we're encrypting: do it!
+		}
+
 		__global__ void decryptUsingGlobalMem(uint8_t* idata, uint8_t* odata,
 											uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox,
 											uint64_t bytesToEncrypt, int numAblocksPerThread) {
@@ -450,31 +507,7 @@ namespace AES {
 									int roundKeySize, uint8_t sharedMemFlags) {
 			extern __shared__ uint8_t shared[];
 			//copy into shared memory
-			int sboxoffset = 0;
-			if (sharedMemFlags & SHAREDMEM_KEYMASK) {
-				int numElementsICopy = (roundKeySize + blockDim.x - 1) / blockDim.x;
-				for (int i = 0; i < numElementsICopy; i++) {
-					int indexICopy = blockDim.x * i + threadIdx.x;
-					if (indexICopy >= roundKeySize) continue;
-					shared[indexICopy] = roundkey[indexICopy];
-				}
-				__syncthreads();
-				roundkey = &shared[0];
-				sboxoffset += roundKeySize;
-			}//if key in shared memory
-			if (sharedMemFlags & SHAREDMEM_SBOXMASK) {
-				int numElementsICopy = (256 + blockDim.x - 1) / blockDim.x;
-				for (int i = 0; i < numElementsICopy; i++) {
-					int indexICopy = blockDim.x * i + threadIdx.x;
-					if (indexICopy >= 256) continue;
-					shared[sboxoffset + indexICopy] = sbox[indexICopy];
-					shared[sboxoffset + indexICopy + 256] = rsbox[indexICopy];
-				}
-				__syncthreads();
-				sbox = &shared[sboxoffset];
-				rsbox = &shared[sboxoffset + 256];
-			}
-
+			copyDataToSharedMemory(shared, &roundkey, &sbox, &rsbox, roundKeySize, sharedMemFlags);
 
 			int index = blockIdx.x * blockDim.x + threadIdx.x;
 			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
@@ -490,9 +523,146 @@ namespace AES {
 			}//for each block we're encrypting: do it!
 		}
 
+		__global__ void encryptCTRUsingSharedMem(uint8_t* idata, uint8_t* odata,
+											uint8_t* roundkey, uint8_t* iv,
+											uint8_t* sbox, uint8_t* rsbox,
+											uint64_t bytesToEncrypt, int numAblocksPerThread,
+											int roundKeySize, uint8_t sharedMemFlags) {
+			extern __shared__ uint8_t shared[];
+			//copy into shared memory
+			copyDataToSharedMemory(shared, &roundkey, &sbox, &rsbox, roundKeySize, sharedMemFlags);
+
+			int index = blockIdx.x * blockDim.x + threadIdx.x;
+			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
+			if (byteOffset >= bytesToEncrypt) return;
+
+			uint8_t myIv[AES_BLOCKLEN];
+
+			for (int i = 0; i < numAblocksPerThread; i++) {
+				int blockOffset = index * numAblocksPerThread + i;
+				memcpy(myIv, iv, AES_BLOCKLEN * sizeof(uint8_t));
+				incrementIvByValue(myIv, blockOffset);
+
+				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
+				uint8_t* myInputStartPoint = idata + thisOffset;
+				uint8_t* myOutputStartPoint = odata + thisOffset;
+
+				Encrypt(myIv, myIv, roundkey, sbox, rsbox);
+				for (uint8_t j = 0; j < AES_BLOCKLEN; j++) {
+					myOutputStartPoint[j] = myIv[j] ^ myInputStartPoint[j];
+				}
+			}//for each block we're encrypting: do it!
+		}
+
+		__global__ void decryptUsingSharedMem(uint8_t* idata, uint8_t* odata,
+									uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox,
+									uint64_t bytesToEncrypt, int numAblocksPerThread,
+			int roundKeySize, uint8_t sharedMemFlags) {
+			extern __shared__ uint8_t shared[];
+			//copy into shared memory
+			copyDataToSharedMemory(shared, &roundkey, &sbox, &rsbox, roundKeySize, sharedMemFlags);
+
+			int index = blockIdx.x * blockDim.x + threadIdx.x;
+			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
+			if (byteOffset >= bytesToEncrypt) return;
+
+
+			for (int i = 0; i < numAblocksPerThread; i++) {
+				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
+				uint8_t* myInputStartPoint = idata + thisOffset;
+				uint8_t* myOutputStartPoint = odata + thisOffset;
+
+				Decrypt(myInputStartPoint, myOutputStartPoint, roundkey, sbox, rsbox);
+			}//for each block we're encrypting: do it!
+		}
+
+		__global__ void encryptUsingParameter(uint8_t* idata, uint8_t* odata,
+									KeyBox keyBox,
+									uint64_t bytesToEncrypt, int numAblocksPerThread) {
+			int index = blockIdx.x * blockDim.x + threadIdx.x;
+			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
+			if (byteOffset >= bytesToEncrypt) return;
+
+			for (int i = 0; i < numAblocksPerThread; i++) {
+				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
+				uint8_t* myInputStartPoint = idata + thisOffset;
+				uint8_t* myOutputStartPoint = odata + thisOffset;
+
+				Encrypt(myInputStartPoint, myOutputStartPoint, keyBox.roundkey, keyBox.sbox, keyBox.rsbox);
+			}//for each block we're encrypting: do it!
+		}
+
+		__global__ void encryptCTRUsingParameter(uint8_t* idata, uint8_t* odata,
+											KeyBox keyBox, uint8_t* iv,
+											uint64_t bytesToEncrypt, int numAblocksPerThread) {
+			int index = blockIdx.x * blockDim.x + threadIdx.x;
+			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
+			if (byteOffset >= bytesToEncrypt) return;
+
+			uint8_t myIv[AES_BLOCKLEN];
+
+			for (int i = 0; i < numAblocksPerThread; i++) {
+				int blockOffset = index * numAblocksPerThread + i;
+				memcpy(myIv, iv, AES_BLOCKLEN * sizeof(uint8_t));
+				incrementIvByValue(myIv, blockOffset);
+
+				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
+				uint8_t* myInputStartPoint = idata + thisOffset;
+				uint8_t* myOutputStartPoint = odata + thisOffset;
+
+				Encrypt(myIv, myIv, keyBox.roundkey, keyBox.sbox, keyBox.rsbox);
+				for (uint8_t j = 0; j < AES_BLOCKLEN; j++) {
+					myOutputStartPoint[j] = myIv[j] ^ myInputStartPoint[j];
+				}
+			}//for each block we're encrypting: do it!
+		}
+
+		__global__ void decryptUsingParameter(uint8_t* idata, uint8_t* odata,
+									KeyBox keyBox,
+									uint64_t bytesToEncrypt, int numAblocksPerThread) {
+			int index = blockIdx.x * blockDim.x + threadIdx.x;
+			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
+			if (byteOffset >= bytesToEncrypt) return;
+
+			for (int i = 0; i < numAblocksPerThread; i++) {
+				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
+				uint8_t* myInputStartPoint = idata + thisOffset;
+				uint8_t* myOutputStartPoint = odata + thisOffset;
+
+				Decrypt(myInputStartPoint, myOutputStartPoint, keyBox.roundkey, keyBox.sbox, keyBox.rsbox);
+			}//for each block we're encrypting: do it!
+		}
+
 		//######################
 		// MEMORY HELPERS
 		//######################
+
+		__device__ void copyDataToSharedMemory(uint8_t* shared, uint8_t** roundkey, uint8_t** sbox, uint8_t** rsbox, int roundKeySize, uint8_t sharedMemFlags) {
+			int sboxoffset = 0;
+			if (sharedMemFlags & SHAREDMEM_KEYMASK) {
+				int numElementsICopy = (roundKeySize + blockDim.x - 1) / blockDim.x;
+				for (int i = 0; i < numElementsICopy; i++) {
+					int indexICopy = blockDim.x * i + threadIdx.x;
+					if (indexICopy >= roundKeySize) continue;
+					shared[indexICopy] = (*roundkey)[indexICopy];
+				}
+				__syncthreads();
+				*roundkey = &shared[0];
+				sboxoffset += roundKeySize;
+			}//if key in shared memory
+			if (sharedMemFlags & SHAREDMEM_SBOXMASK) {
+				int numElementsICopy = (256 + blockDim.x - 1) / blockDim.x;
+				for (int i = 0; i < numElementsICopy; i++) {
+					int indexICopy = blockDim.x * i + threadIdx.x;
+					if (indexICopy >= 256) continue;
+					shared[sboxoffset + indexICopy] = (*sbox)[indexICopy];
+					shared[sboxoffset + indexICopy + 256] = (*rsbox)[indexICopy];
+				}
+				__syncthreads();
+				*sbox = &shared[sboxoffset];
+				*rsbox = &shared[sboxoffset + 256];
+			}
+		}
 
 		void copyNkToConstantMemory() {
 			uint8_t Nk, Nr;
@@ -568,6 +738,41 @@ namespace AES {
 			free(roundkey);
 		}
 
+		void initGlobalMemIv(const uint8_t* iv) {
+			cudaMalloc(&d_iv, AES_BLOCKLEN * sizeof(uint8_t));
+			checkCUDAError("cudaMalloc");
+			cudaMemcpy(d_iv, iv, AES_BLOCKLEN * sizeof(uint8_t), cudaMemcpyHostToDevice);
+			checkCUDAError("cudamemcpy");
+		}
+
+		void initKeyBox(const uint8_t* key, KeyBox* keyBox) {
+			uint8_t Nk, Nr;
+			switch (AES_SIZE) {
+			case 256:
+				Nk = 8;
+				Nr = 14;
+				break;
+			case 192:
+				Nk = 6;
+				Nr = 12;
+				break;
+			case 128:
+				Nk = 4;
+				Nr = 10;
+				break;
+			default:
+				break;
+			}
+			uint8_t* roundkey = (uint8_t*)malloc(AES_KEY_EXP_SIZE * sizeof(uint8_t));
+			expandKey(key, roundkey, Nk, Nr);
+
+			memcpy(keyBox->roundkey, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t));
+			memcpy(keyBox->sbox, sbox, 256);
+			memcpy(keyBox->rsbox, rsbox, 256);
+
+			free(roundkey);
+		}
+
 		void initGlobalMemSbox() {
 			cudaMalloc(&d_sbox, 256 * sizeof(uint8_t));
 			cudaMalloc(&d_rsbox, 256 * sizeof(uint8_t));
@@ -585,6 +790,11 @@ namespace AES {
 
 		void deinitGlobalMemKey() {
 			cudaFree(d_roundkey);
+			checkCUDAError("cudafree");
+		}
+
+		void deinitGlobalMemIv() {
+			cudaFree(d_iv);
 			checkCUDAError("cudafree");
 		}
 
@@ -628,7 +838,7 @@ namespace AES {
 			initGlobalMemSbox();
 
 			//kernel initialization params
-			int numAblocksPerThread = 1;//TODO: allow shift in number of blocks per thread
+			int numAblocksPerThread = ABLOCKS_PER_THREAD;
 			dim3 tpb = dim3(BLOCKSIZE);
 			dim3 bpg = getNumBlocks(paddedLength, numAblocksPerThread);
 
@@ -641,6 +851,13 @@ namespace AES {
 					d_roundkey, d_sbox, d_rsbox,
 					paddedLength, numAblocksPerThread,
 					AES_KEY_EXP_SIZE, sharedMemMask);
+			}
+			else if (USING_PARAMETER) {
+				KeyBox keyBox;
+				initKeyBox(key, &keyBox);
+				encryptUsingParameter <<<bpg, tpb >>> (d_input, d_output,
+							keyBox,
+							bufferLength, numAblocksPerThread);
 			}
 			else {
 				encryptUsingGlobalMem <<<bpg, tpb >>> (d_input, d_output,
@@ -672,15 +889,32 @@ namespace AES {
 			initGlobalMemSbox();
 
 			//kernel initialization params
-			int numAblocksPerThread = 1;//TODO: allow shift in number of blocks per thread
+			int numAblocksPerThread = ABLOCKS_PER_THREAD;
 			dim3 tpb = dim3(BLOCKSIZE);
 			dim3 bpg = getNumBlocks(bufferLength, numAblocksPerThread);
 
 			timer().startGpuTimer();
 
-			decryptUsingGlobalMem<<<bpg, tpb >>>(d_input, d_output,
-				d_roundkey, d_sbox, d_rsbox,
-				bufferLength, numAblocksPerThread);
+			if (USING_SHAREDMEM) {
+				uint8_t sharedMemMask = 0x00;
+				int sharedmemSize = getSharedMemSize(&sharedMemMask);
+				decryptUsingSharedMem<<<bpg, tpb, sharedmemSize >>>(d_input, d_output,
+								d_roundkey, d_sbox, d_rsbox,
+								bufferLength, numAblocksPerThread,
+								AES_KEY_EXP_SIZE, sharedMemMask);
+			}
+			else if (USING_PARAMETER) {
+				KeyBox keyBox;
+				initKeyBox(key, &keyBox);
+				decryptUsingParameter<<<bpg, tpb >>>(d_input, d_output,
+					keyBox,
+					bufferLength, numAblocksPerThread);
+			}
+			else {
+				decryptUsingGlobalMem<<<bpg, tpb >>>(d_input, d_output,
+								d_roundkey, d_sbox, d_rsbox,
+								bufferLength, numAblocksPerThread);
+			}
 
 			timer().endGpuTimer();
 
@@ -706,9 +940,7 @@ namespace AES {
 			}
 
 			//malloc space for padded input/output
-			cudaMalloc((void**)&d_input, paddedLength * sizeof(uint8_t));
-			cudaMalloc((void**)&d_output, paddedLength * sizeof(uint8_t));
-			checkCUDAError("CudaMalloc");
+			initGlobalMemIO(paddedLength);
 			//copy input
 			cudaMemcpy(d_input, input, bufferLength * sizeof(uint8_t), cudaMemcpyHostToDevice);
 			checkCUDAError("CudaMemcpy");
@@ -716,12 +948,38 @@ namespace AES {
 			cudaMemcpy(d_input + bufferLength, lenDiffArray, lenDiff, cudaMemcpyHostToDevice);
 			checkCUDAError("CudaMemcpy");
 			copyNkToConstantMemory();
+			initGlobalMemKey(key);
+			initGlobalMemSbox();
+			initGlobalMemIv(iv);
+
+			//kernel initialization params
+			int numAblocksPerThread = ABLOCKS_PER_THREAD;
+			dim3 tpb = dim3(BLOCKSIZE);
+			dim3 bpg = getNumBlocks(paddedLength, numAblocksPerThread);
 
 			timer().startGpuTimer();
 
-			//TODO: actually encrypt
-
-
+			if (USING_SHAREDMEM) {
+				uint8_t sharedMemMask = 0x00;
+				int sharedmemSize = getSharedMemSize(&sharedMemMask);
+				encryptCTRUsingSharedMem << <bpg, tpb, sharedmemSize >> > (d_input, d_output,
+					d_roundkey, d_iv,
+					d_sbox, d_rsbox,
+					paddedLength, numAblocksPerThread,
+					AES_KEY_EXP_SIZE, sharedMemMask);
+			}
+			else if (USING_PARAMETER) {
+				KeyBox keyBox;
+				initKeyBox(key, &keyBox);
+				encryptCTRUsingParameter << <bpg, tpb >> > (d_input, d_output,
+					keyBox, d_iv,
+					bufferLength, numAblocksPerThread);
+			}
+			else {
+				encryptCTRUsingGlobalMem <<<bpg, tpb >>> (d_input, d_output,
+					d_roundkey, d_iv, d_sbox, d_rsbox,
+					paddedLength, numAblocksPerThread);
+			}
 
 			timer().endGpuTimer();
 
@@ -730,14 +988,67 @@ namespace AES {
 			checkCUDAError("CudaMemcpy");
 
 			//free input/output
-			cudaFree((void*)d_input);
-			cudaFree((void*)d_output);
-			checkCUDAError("CudaFree");
+			deinitGlobalMemKey();
+			deinitGlobalMemSbox();
+			deinitGlobalMemIO();
+			deinitGlobalMemIv();
 			return (long)paddedLength;
 		}
 
 		long decryptCTR(const uint8_t* key, const uint8_t* iv, const uint8_t* input, uint8_t* output, uint64_t bufferLength) {
-			return -1;
+			//malloc space for padded input/output
+			initGlobalMemIO(bufferLength);
+			//copy input
+			cudaMemcpy(d_input, input, bufferLength * sizeof(uint8_t), cudaMemcpyHostToDevice);
+			checkCUDAError("CudaMemcpy");
+			copyNkToConstantMemory();
+			initGlobalMemKey(key);
+			initGlobalMemSbox();
+			initGlobalMemIv(iv);
+
+			//kernel initialization params
+			int numAblocksPerThread = ABLOCKS_PER_THREAD;
+			dim3 tpb = dim3(BLOCKSIZE);
+			dim3 bpg = getNumBlocks(bufferLength, numAblocksPerThread);
+
+			timer().startGpuTimer();
+
+			if (USING_SHAREDMEM) {
+				uint8_t sharedMemMask = 0x00;
+				int sharedmemSize = getSharedMemSize(&sharedMemMask);
+				encryptCTRUsingSharedMem << <bpg, tpb, sharedmemSize >> > (d_input, d_output,
+					d_roundkey, d_iv,
+					d_sbox, d_rsbox,
+					bufferLength, numAblocksPerThread,
+					AES_KEY_EXP_SIZE, sharedMemMask);
+			}
+			else if (USING_PARAMETER) {
+				KeyBox keyBox;
+				initKeyBox(key, &keyBox);
+				encryptCTRUsingParameter << <bpg, tpb >> > (d_input, d_output,
+					keyBox, d_iv,
+					bufferLength, numAblocksPerThread);
+			}
+			else {
+				encryptCTRUsingGlobalMem << <bpg, tpb >> > (d_input, d_output,
+					d_roundkey, d_iv, d_sbox, d_rsbox,
+					bufferLength, numAblocksPerThread);
+			}
+
+			timer().endGpuTimer();
+
+			//copy output
+			cudaMemcpy(output, d_output, bufferLength * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+			checkCUDAError("CudaMemcpy");
+
+			//unpad output
+			uint64_t unpadLength = AES::Common::unpadData(output, bufferLength);
+
+			deinitGlobalMemKey();
+			deinitGlobalMemIv();
+			deinitGlobalMemSbox();
+			deinitGlobalMemIO();
+			return (long)unpadLength;
 		}
 
 

@@ -15,6 +15,12 @@ typedef struct State {
 #endif
 } State;
 
+typedef struct KeyBox {
+	uint8_t roundkey[240];//going for the maximum (256-bit) because cannot change at runtime
+	uint8_t sbox[256];
+	uint8_t rsbox[256];
+}KeyBox;
+
 
 namespace AES {
     namespace GPU {
