@@ -76,12 +76,12 @@ namespace AES {
 
 #define GF_MAGIC 0x1B
 
-		__host__ __device__ static uint8_t gfmult2(uint8_t x) {
+		__host__ __device__  uint8_t gfmult2(uint8_t x) {
 			uint8_t result = (x >> 7) ? (x << 1) ^ GF_MAGIC : (x << 1);
 			return result;
 		}
 
-		__host__ __device__ static uint8_t gfmult3(uint8_t x) {
+		__host__ __device__  uint8_t gfmult3(uint8_t x) {
 			uint8_t result = gfmult2(x) ^ x;
 			return result;
 		}
@@ -90,19 +90,19 @@ namespace AES {
 		The larger numbers might be inefficient; perhaps go about the operations differently?
 		May not be an efficient way to do it, unfortunately
 		*/
-		__host__ __device__ static uint8_t gfmult9(uint8_t x) {
+		__host__ __device__  uint8_t gfmult9(uint8_t x) {
 			uint8_t result = gfmult2(gfmult2(gfmult2(x))) ^ x;
 			return result;
 		}
-		__host__ __device__ static uint8_t gfmult11(uint8_t x) {
+		__host__ __device__  uint8_t gfmult11(uint8_t x) {
 			uint8_t result = gfmult2(gfmult2(gfmult2(x)) ^ x) ^ x;
 			return result;
 		}
-		__host__ __device__ static uint8_t gfmult13(uint8_t x) {
+		__host__ __device__  uint8_t gfmult13(uint8_t x) {
 			uint8_t result = gfmult2(gfmult2(gfmult2(x) ^ x)) ^ x;
 			return result;
 		}
-		__host__ __device__ static uint8_t gfmult14(uint8_t x) {
+		__host__ __device__  uint8_t gfmult14(uint8_t x) {
 			uint8_t result = gfmult2(gfmult2(gfmult2(x) ^ x) ^ x);
 			return result;
 		}
@@ -111,7 +111,7 @@ namespace AES {
 		GF-field multiplication
 		This is not super-secure, but should be reasonably sensible to debug
 		*/
-		__host__ __device__ static uint8_t gfmult(uint8_t x, uint8_t y) {
+		__host__ __device__  uint8_t gfmult(uint8_t x, uint8_t y) {
 			switch (y) {
 			case 0x02:
 				return gfmult2(x);
@@ -131,8 +131,10 @@ namespace AES {
 			case 0x0E:
 				return gfmult14(x);
 				break;
+			default:
+				return 0x00;
+				break;
 			}
-			return 0x00;
 		}
 
 		//####################
@@ -346,13 +348,13 @@ namespace AES {
 				unsigned rkbase = (roundNum * Nb * 4) + (i * Nb);
 #if USING_VECTORS
 
-				//*reinterpret_cast<uint32_t*>(&state->data[i]) = 
-				//	*reinterpret_cast<uint32_t*>(&state->data[i]) ^
-				//	*reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
-				state->data[i].x ^= roundKey[rkbase + 0];
-				state->data[i].y ^= roundKey[rkbase + 1];
-				state->data[i].z ^= roundKey[rkbase + 2];
-				state->data[i].w ^= roundKey[rkbase + 3];
+				*reinterpret_cast<uint32_t*>(&state->data[i]) = 
+					*reinterpret_cast<uint32_t*>(&state->data[i]) ^
+					*reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
+				//state->data[i].x ^= roundKey[rkbase + 0];
+				//state->data[i].y ^= roundKey[rkbase + 1];
+				//state->data[i].z ^= roundKey[rkbase + 2];
+				//state->data[i].w ^= roundKey[rkbase + 3];
 				
 #else
 				*reinterpret_cast<uint32_t*>(&state->data[i]) = 
