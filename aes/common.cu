@@ -40,11 +40,12 @@ bool ingestCommandLineOptions(int aes_size, int blocksize,
 		printf("ERROR: invalid AES size argument, must be 256, 192, or 128\n");
 		return false;
 	}
-	if (ceil(log2(blocksize)) == floor(log2(blocksize))) {
+	if (blocksize >= 32 && blocksize % 32 == 0){
+	//if (ceil(log2(blocksize)) == floor(log2(blocksize))) {
 		BLOCKSIZE = blocksize;
 	}
 	else {
-		printf("ERROR: invalid block size, must be power of 2\n");
+		printf("ERROR: invalid block size, must be multiple of 32\n");
 		return false;
 	}
 	if (blocksperthread < 1 || blocksperthread > 1024) {

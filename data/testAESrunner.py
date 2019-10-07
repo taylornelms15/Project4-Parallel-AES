@@ -54,7 +54,9 @@ def main():
    
     results = getRunResults("sharedKey", 512)
 
-    print(testMemoryModes(256, 128))
+    results = testMemoryModes(256, 192)
+    for k, v in results.items():
+        print("%s\t%s" % (k, v))
 
 
 
