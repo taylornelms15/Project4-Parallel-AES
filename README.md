@@ -95,21 +95,31 @@ Since the expanded key is between `176` and `240` bytes long (depending on our k
 
 For a more in-depth discussion about the structure of the algorithm, I highly recommend [this pdf from Purdue](https://engineering.purdue.edu/kak/compsec/NewLectures/Lecture8.pdf), which proved useful when implementing this project.
 
-## Notes for Implementation
+## My Implementation
 
-sbox, rsbox: 256-size byte arrays for lookups. can compare global memory to shared memory for them. Rcon-11 bytes, same thing. (this is for key expansion)
-In reality - key expansion should probably be on CPU; only happens once. (this is the initializing-context bit)
+### Basic Approach
 
-The ECB mode does encryption on the plaintext directly, 16-byte block by 16-byte block
-The CTR mode does encryption on the counter IV (and it is being modified as we go), and XOR-ing that with the plaintext. Effectively, it's using the IV and the key to create a chain of noise, and just XOR'ing that. (thus, why you never want to repeat an IV and key combo; if one thing is broken, or its plaintext contents are known, somebody has the whole set of info)
+Though it may have been technically feasible to parallelize or pipeline dataflow within the encryption of each block, I instead elected to perform the encryption of each block using a single kernel thread; that way, I could eliminate data dependencies between threads, and (ideally) each warp could simultaneously operate on 32 blocks without interruption.
 
-For the encryption/decryption steps:
-* The Roundkey (240 bytes) is the value shared to all potential block processes.
-    * Can compare having it as a parameter (direct to registers...?), global memory, constant memory, and pulling it into shared memory
-* Similarly, the substitution box (SBox) operates with the same behavior. This is a 256-byte substitution table. (The inverse, rsbox, behaves the same)
-* In terms of parallelization, the state is operated on sequentially, both within a round of processing and between rounds.
-    * It is not feasible to parallelize between these steps
-    * While it may be feasible to parallelize bits within the steps (such as subBytes), I'm going to propose that the step would not be worth the overhead (and programmer headache), as a pair of threads could just as easily be working on more blocks as doing just one. Additionally, this cuts down the need to share the state between threads, which could get significant.
+I allow for one thread to encrypt/decrypt multiple AES blocks as well, to see if there is any advantage to reducing the thread count overall and instead have each thread do more work.
+
+#### Memory
+
+The input and output buffers are, of course, very large, and each thread will need to access a different part of them. As such, global memory seems the reasonable place to keep them.
+
+However, there are a few pieces of data that are constant to each thread. One are the tables for byte substitution, **sbox** and **rsbox**. Another is the key schedule itself, **roundkey**; it is precomputed on the CPU, but then used by each kernel without being modified at all.
+
+As such, we have a few options of how to put these chunks of data (containing up to `752` total bytes) somewhere that each thread can access them.
+
+* Access each table from global memory
+* Put each table into global constant memory
+* Pull the contents of the tables into shared memory
+    * Implementation allows for putting the key, the substitution boxes, or both into shared memory
+* Wrap the tables into a struct and pass them directly to each kernel via a parameter to the `__global__ void` function
+
+## Performance Analysis
+
+
 
 
 ## References
