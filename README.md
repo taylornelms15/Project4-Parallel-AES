@@ -63,7 +63,7 @@ For example, if our data contained a final partial block with only four bytes in
 
 #### Rounds
 
-The AES algorithm does a set of operations to the plaintext across a number of rounds. Each size key uses a different number of rounds: 10 rounds for 128-bit keys, 12 rounds for 192-bit keys, and 14 rounds for 256-bit keys. This number of rounds roughly correlates to the amount of computational work done overall; below, we see the encryption/decryption time for different key lengths on a CPU.
+The AES algorithm does a set of operations to the plaintext across a number of rounds. Each size key uses a different number of rounds: `10` rounds for `128`-bit keys, `12` rounds for `192`-bit keys, and `14` rounds for `256`-bit keys. This number of rounds roughly correlates to the amount of computational work done overall; below, we see the encryption/decryption time for different key lengths on a CPU.
 
 ![Effect of key size on encryption/decryption time on a CPU](img/KeylenChartCPU.png)
 
