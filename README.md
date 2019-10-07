@@ -67,8 +67,31 @@ The AES algorithm does a set of operations to the plaintext across a number of r
 
 ![Effect of key size on encryption/decryption time on a CPU](img/KeylenChartCPU.png)
 
+The algorithm is applied in series to a working state of the plaintext block; each step (summarized below) operates on the block in-place. This working state is traditionally treated as a column-major `4x4` byte matrix.
 
+#### Steps
 
+Each round does four main steps (with some differences across the final round): **Substitute Bytes**, **Shift Rows**, **Mix Columns**, and **Add Key**.
+
+##### Substitute Bytes
+
+Each byte is substituted for a different value. This is most easily done via a 256-entry lookup table. (The inverse of this step is done using the inverse of this table.) These are referred to for my implementation as the **S-box** and **RS-box**, respectively. Given how many lookups are done in this table, the issue of where we store it is an important performance consideration.
+
+##### Shift Rows
+
+While remembering that the state is in a column-major matrix, the issue of shifting rows becomes slightly less memory-trivial. Nevertheless, this step is simply a matter of rotating each matrix row to the left some number of times; `0` times for the first row, `1` for the second, `2` for the third, and `3` for the final row. The inverse operation is the same, but in the opposite direction.
+
+##### Mix Columns
+
+One of the more mathematically complex steps, this produces each byte of column output as a combination of each other byte in the column. It uses something tantalizingly close to matrix multiplication, but is unfortunately closer to matrix multiplication using finite-field arithmetic, which limited my ability to make use of CUDA primitives to expedite the process.
+
+##### Add Key
+
+The key itself is, at the beginning of the algorithm, transformed into a key schedule (the **RoundKey** in my implementation, which is relevant in the same way the **S-box** is). Depending on which round we are in, we simply **XOR** the state with the key schedule at a particular point.
+
+Since the expanded key is between `176` and `240` bytes long (depending on our key size), and is used multiple times and by all blocks in the same way, the method by which we store and reference it is an important consideration to this project.
+
+##### Further Reading
 
 For a more in-depth discussion about the structure of the algorithm, I highly recommend [this pdf from Purdue](https://engineering.purdue.edu/kak/compsec/NewLectures/Lecture8.pdf), which proved useful when implementing this project.
 
