@@ -35,14 +35,13 @@ This method is naively parallelizable, as the same operation is applied to each 
 
 This has the disadvantage that, for repeated plaintext data, the ciphertext will be similarly repeated. As such, even though retrieving the exact plaintext may be impossible, the structure of the plaintext data may still be visible.
 
-![Original Content](img/blade_model.jpg)
-
-*Original Content*
+<figure class="image">
+  <img src="img/blade_model.jpg" alt="Original Content">
+  <figcaption>Original Content</figcaption>
+</figure>
 ![Results of ECB Encryption](img/blade_model_ecb.jpg)
-
 *Results of ECB Encryption*
 ![Results of CTR Encryption](img/blade_model_ctr.jpg)
-
 *Results of CTR Encryption*
 
 #### CTR
