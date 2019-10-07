@@ -7,6 +7,8 @@ CUDA AES Encryption
   * [LinkedIn](https://www.linkedin.com/in/taylor-k-7b2110191/), [twitter](https://twitter.com/nelms_taylor)
 * Tested on: Windows 10, Intel i3 Coffee Lake 4-core 3.6GHz processor, 16GB RAM, NVidia GeForce GTX1650 4GB
 
+![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
+
 ## Motivation
 
 Encryption is a pervasive element of cybersecurity; however, despite needing to encrypt vast amounts of data, there is a relative lack of parallelizable options to do so. Some of that is algorithmic in nature; various encryption algorithms are data-dependent in an unbroken chain from the first bit to the last. However, there are algorithms that allow for a data-parallel approach to encryption; in particular, the ECB and CTR encryption modes of the AES algorithm allow for such an operation.
@@ -102,6 +104,10 @@ For a more in-depth discussion about the structure of the algorithm, I highly re
 Though it may have been technically feasible to parallelize or pipeline dataflow within the encryption of each block, I instead elected to perform the encryption of each block using a single kernel thread; that way, I could eliminate data dependencies between threads, and (ideally) each warp could simultaneously operate on 32 blocks without interruption.
 
 I allow for one thread to encrypt/decrypt multiple AES blocks as well, to see if there is any advantage to reducing the thread count overall and instead have each thread do more work.
+
+#### Block Size
+
+As we know, each thread can
 
 #### Memory
 
