@@ -27,6 +27,7 @@ extern bool USING_PARAMETER;
 extern bool USING_SHAREDMEM;
 extern bool SHAREDMEM_KEY;
 extern bool SHAREDMEM_SBOX;
+extern bool CONSTANTMEM;
 extern bool QUIET;
 extern int AES_SIZE;//other options 192, 128
 extern int AES_KEY_EXP_SIZE;
@@ -37,7 +38,8 @@ bool ingestCommandLineOptions(int aes_size = 256, int blocksize = 256,
 							bool sharedmem_key = true, 
 							bool sharedmem_sbox = true,
 							bool parameter = false,
-							bool quiet = false);
+							bool quiet = false,
+							bool constant = false);
 //TODO: extract AES_keyExpSize sensibly
 #define SHAREDMEM_SIZE ((SHAREDMEM_KEY ? AES_keyExpSize : 0) + (SHAREDMEM_SBOX ? 256 : 0))
 #define H_AES_KEYLEN (AES_SIZE / 8)

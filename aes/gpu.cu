@@ -149,6 +149,10 @@ namespace AES {
 		#define Nb 4//always 4 columns for stae
 		__constant__ uint8_t Nkvars[2];//first one is Nk, second one is Nr (Nk not used on device, I later learned)
 
+		__constant__ uint8_t csbox[256];
+		__constant__ uint8_t crsbox[256];
+		__constant__ uint8_t croundkey[240];
+
 		//####################
 		// KERNEL FUNCTIONS
 		//####################
@@ -445,10 +449,15 @@ namespace AES {
 
 		__global__ void encryptUsingGlobalMem(uint8_t* idata, uint8_t* odata, 
 											uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox, 
-											uint64_t bytesToEncrypt, int numAblocksPerThread) {
+											uint64_t bytesToEncrypt, int numAblocksPerThread, bool constantMem) {
 			int index = blockIdx.x * blockDim.x + threadIdx.x;
 			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
 			if (byteOffset >= bytesToEncrypt) return;
+			if (constantMem) {
+				sbox		= csbox;
+				rsbox		= crsbox;
+				roundkey	= croundkey;
+			}
 
 			for (int i = 0; i < numAblocksPerThread; i++) {
 				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
@@ -462,10 +471,15 @@ namespace AES {
 		__global__ void encryptCTRUsingGlobalMem(uint8_t* idata, uint8_t* odata,
 											uint8_t* roundkey, uint8_t* iv,
 											uint8_t* sbox, uint8_t* rsbox,
-											uint64_t bytesToEncrypt, int numAblocksPerThread) {
+											uint64_t bytesToEncrypt, int numAblocksPerThread, bool constantMem) {
 			int index = blockIdx.x * blockDim.x + threadIdx.x;
 			long byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
 			if (byteOffset >= bytesToEncrypt) return;
+			if (constantMem) {
+				sbox		= csbox;
+				rsbox		= crsbox;
+				roundkey	= croundkey;
+			}
 
 			uint8_t myIv[AES_BLOCKLEN];
 
@@ -487,10 +501,15 @@ namespace AES {
 
 		__global__ void decryptUsingGlobalMem(uint8_t* idata, uint8_t* odata,
 											uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox,
-											uint64_t bytesToEncrypt, int numAblocksPerThread) {
+											uint64_t bytesToEncrypt, int numAblocksPerThread, bool constantMem) {
 			int index = blockIdx.x * blockDim.x + threadIdx.x;
 			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
 			if (byteOffset >= bytesToEncrypt) return;
+			if (constantMem) {
+				sbox		= csbox;
+				rsbox		= crsbox;
+				roundkey	= croundkey;
+			}
 
 			for (int i = 0; i < numAblocksPerThread; i++) {
 				int thisOffset = byteOffset + BYTES_PER_ABLOCK * i;
@@ -735,6 +754,11 @@ namespace AES {
 			cudaMemcpy(d_roundkey, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t), cudaMemcpyHostToDevice);
 			checkCUDAError("cudamemcpy");
 
+			if (CONSTANTMEM) {
+				cudaMemcpyToSymbol(croundkey, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t));
+				checkCUDAError("cudamemcpysymbol");
+			}
+
 			free(roundkey);
 		}
 
@@ -780,6 +804,11 @@ namespace AES {
 			cudaMemcpy(d_sbox, sbox, 256 * sizeof(uint8_t), cudaMemcpyHostToDevice);
 			cudaMemcpy(d_rsbox, rsbox, 256 * sizeof(uint8_t), cudaMemcpyHostToDevice);
 			checkCUDAError("cudamemcpy");
+			if (CONSTANTMEM) {
+				cudaMemcpyToSymbol(csbox, sbox, 256 * sizeof(uint8_t));
+				cudaMemcpyToSymbol(crsbox, rsbox, 256 * sizeof(uint8_t));
+				checkCUDAError("cudamemcpysymbol");
+			}
 		}
 
 		void deinitGlobalMemIO() {
@@ -862,7 +891,7 @@ namespace AES {
 			else {
 				encryptUsingGlobalMem <<<bpg, tpb >>> (d_input, d_output,
 					d_roundkey, d_sbox, d_rsbox,
-					paddedLength, numAblocksPerThread);
+					paddedLength, numAblocksPerThread, CONSTANTMEM);
 			}
 
 			timer().endGpuTimer();
@@ -913,7 +942,7 @@ namespace AES {
 			else {
 				decryptUsingGlobalMem<<<bpg, tpb >>>(d_input, d_output,
 								d_roundkey, d_sbox, d_rsbox,
-								bufferLength, numAblocksPerThread);
+								bufferLength, numAblocksPerThread, CONSTANTMEM);
 			}
 
 			timer().endGpuTimer();
@@ -978,7 +1007,7 @@ namespace AES {
 			else {
 				encryptCTRUsingGlobalMem <<<bpg, tpb >>> (d_input, d_output,
 					d_roundkey, d_iv, d_sbox, d_rsbox,
-					paddedLength, numAblocksPerThread);
+					paddedLength, numAblocksPerThread, CONSTANTMEM);
 			}
 
 			timer().endGpuTimer();
@@ -1032,7 +1061,7 @@ namespace AES {
 			else {
 				encryptCTRUsingGlobalMem << <bpg, tpb >> > (d_input, d_output,
 					d_roundkey, d_iv, d_sbox, d_rsbox,
-					bufferLength, numAblocksPerThread);
+					bufferLength, numAblocksPerThread, CONSTANTMEM);
 			}
 
 			timer().endGpuTimer();

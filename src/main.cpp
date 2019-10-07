@@ -37,21 +37,24 @@ int main(int argc, char* argv[]) {
 		("n,blocksperthread", "How many AES blocks each thread processes", cxxopts::value<int>()->default_value("1"))
 		("y,sharedmemKey", "Whether storing key in shared memory")
 		("s,sharedmemSBox", "Whether storing sbox in shared memory")
+		("c,constantMem", "Whether storing relevant components in constant memory")
 		("p,parameter", "Whether we are pulling keys and sboxes from a passed parameter")
 		("q,quiet", "Runs just the GPU tests, outputs just the timings for automatic consumption")
 		;
 	auto result = options.parse(argc, argv);
-	bool sharedmemKey = false; bool sharedmemSBox = false; bool parameter = false; bool quiet = false;
+	bool sharedmemKey = false; bool sharedmemSBox = false; 
+	bool parameter = false; bool quiet = false; bool constant = false;
 	int blocksize; int keysize; int blocksperthread;
 	sharedmemKey	= result.count("sharedmemKey") > 0;
 	sharedmemSBox	= result.count("sharedmemSBox") > 0;
 	parameter		= result.count("parameter") > 0;
 	quiet			= result.count("quiet") > 0;
+	constant		= result.count("constantMem") > 0;
 	blocksize		= result["blocksize"].as<int>();
 	keysize			= result["keysize"].as<int>();
 	blocksperthread = result["blocksperthread"].as<int>();
 
-	ingestCommandLineOptions(keysize, blocksize, blocksperthread, sharedmemKey, sharedmemSBox, parameter, quiet);
+	ingestCommandLineOptions(keysize, blocksize, blocksperthread, sharedmemKey, sharedmemSBox, parameter, quiet, constant);
 
 	//Run tests
 	uint8_t* a = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
