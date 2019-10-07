@@ -134,6 +134,29 @@ As such, we have a few options of how to put these chunks of data (containing up
 
 As we know, each CUDA block can contain a different number of threads. I allow for dynamically configurable block sizes, and can thereby analyze the performance impacts thereof.
 
+### Optimizations
+
+#### Vector Bitwise Operations
+
+For the step of adding the round key to the current state, I was stymied by the lack of 
+
+```C
+		__device__ void addKey(State* state, const uint8_t* roundKey, uint8_t roundNum) {
+
+			for (uint8_t i = 0; i < 4; i++) {
+				unsigned rkbase = (roundNum * Nb * 4) + (i * Nb);
+
+				//*reinterpret_cast<uint32_t*>(&state->data[i]) = 
+				//	*reinterpret_cast<uint32_t*>(&state->data[i]) ^
+				//	*reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
+				state->data[i].x ^= roundKey[rkbase + 0];
+				state->data[i].y ^= roundKey[rkbase + 1];
+				state->data[i].z ^= roundKey[rkbase + 2];
+				state->data[i].w ^= roundKey[rkbase + 3];
+    }
+  }
+```
+
 ## Performance Analysis
 
 ![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
