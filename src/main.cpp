@@ -11,6 +11,8 @@
 #include <aes/cpu.h>
 #include <aes/gpu.h>
 #include <cxxopts.hpp>
+#include <string>
+#include <fstream>
 #include "testing_helpers.hpp"
 
 #define OFFPOT 1
@@ -22,10 +24,52 @@ const unsigned int RANDSEED3 = 0x56781234;
 const int SIZE = 1 << 26; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 #if OFFPOT
-const int ASIZE = NPOT;
+static int ASIZE = NPOT;
 #else
-const int ASIZE = SIZE
+static int ASIZE = SIZE;
 #endif
+
+static std::string infile = std::string();
+static std::string keycontents = std::string();
+
+/**
+Reads a file in.
+Important Note: mallocs the memory for the file
+*/
+uint64_t readFile(std::string filepath, uint8_t** dest) {
+	std::ifstream ifs(filepath, std::ifstream::binary);
+	std::string contents = std::string((std::istreambuf_iterator<char>(ifs)),
+										(std::istreambuf_iterator<char>()));
+
+	uint64_t contentSize = contents.size();
+	*dest = (uint8_t*)malloc(contentSize * sizeof(uint8_t));
+	memcpy(*dest, contents.data(), contentSize * sizeof(uint8_t));
+
+	ifs.close();
+	return contentSize;
+}
+
+void writeFile(std::string infilePath, const uint8_t* buffer, uint64_t size, std::string suffix) {
+	std::ofstream outfile(std::string(infilePath).append(suffix), std::ofstream::binary);
+	const char* mybuf = (const char*)buffer;
+	outfile.write(mybuf, size);
+	outfile.close();
+}//writeFile
+
+uint8_t hexToVal(char hex) {
+	if (hex >= '0' && hex <= '9') return (uint8_t)(hex - '0');
+	if (hex >= 'a' && hex <= 'f') return (uint8_t)(hex - 'a' + 10);
+	if (hex >= 'A' && hex <= 'F') return (uint8_t)(hex - 'A' + 10);
+	return 0;
+}
+
+void keyStringToByteBuffer(std::string keystring, uint8_t* buffer) {
+	for (int i = 0; i < AES_SIZE; i++) {
+		char chi = keystring.at(2 * i + 0);
+		char clo = keystring.at(2 * i + 1);
+		buffer[i] = (hexToVal(chi) << 4) | hexToVal(clo);
+	}
+}
 
 
 int main(int argc, char* argv[]) {
@@ -40,6 +84,8 @@ int main(int argc, char* argv[]) {
 		("c,constantMem", "Whether storing relevant components in constant memory")
 		("p,parameter", "Whether we are pulling keys and sboxes from a passed parameter")
 		("q,quiet", "Runs just the GPU tests, outputs just the timings for automatic consumption")
+		("i,infile", "Specifies a file to encrypt", cxxopts::value<std::string>())
+		("x,key", "Specified a hex key to use; must be correct length", cxxopts::value<std::string>())
 		;
 	auto result = options.parse(argc, argv);
 	bool sharedmemKey = false; bool sharedmemSBox = false; 
@@ -53,11 +99,31 @@ int main(int argc, char* argv[]) {
 	blocksize		= result["blocksize"].as<int>();
 	keysize			= result["keysize"].as<int>();
 	blocksperthread = result["blocksperthread"].as<int>();
+	if (result.count("infile")) {
+		infile = result["infile"].as<std::string>();
+	}
+	if (result.count("key")) {
+		keycontents = result["key"].as<std::string>();
+	}
 
 	ingestCommandLineOptions(keysize, blocksize, blocksperthread, sharedmemKey, sharedmemSBox, parameter, quiet, constant);
 
+	if (keycontents.size() && (keycontents.size() != AES_SIZE / 4)) {//num bytes, times 2
+		printf("Error with given key: not correct size. Using random instead.");
+		keycontents = std::string();
+	}
+
+	uint8_t* a;
+	if (infile.size()) {
+		ASIZE = readFile(infile, &a);
+	}
+	else {
+		a = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
+		genArray(ASIZE, a, &RANDSEED);
+	}
+
 	//Run tests
-	uint8_t* a = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
+
 	uint8_t* b = (uint8_t*)malloc((ASIZE + AES_BLOCKLEN) * sizeof(uint8_t));
 	uint8_t* c = (uint8_t*)malloc(ASIZE * sizeof(uint8_t));
 	uint8_t* d = (uint8_t*)malloc((ASIZE + AES_BLOCKLEN) * sizeof(uint8_t));
@@ -66,12 +132,15 @@ int main(int argc, char* argv[]) {
 
 	uint8_t key[AES_KEYLEN];
 	uint8_t iv[AES_BLOCKLEN];
-	genArray(AES_KEYLEN, key, &RANDSEED2);
 	genArray(AES_BLOCKLEN, iv, &RANDSEED3);
 	long bufSize, returnSize;
 
-	genArray(ASIZE, a, &RANDSEED);
-
+	if (keycontents.size()) {
+		keyStringToByteBuffer(keycontents, a);
+	}
+	else {
+		genArray(AES_KEYLEN, key, &RANDSEED2);
+	}
 
 	if (!QUIET) {
 		printf("\n");
@@ -104,6 +173,10 @@ int main(int argc, char* argv[]) {
 	else {
 		printElapsedTime(AES::GPU::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
 		printCmpResult(ASIZE, a, e);
+	}
+
+	if (infile.size()) {
+		writeFile(infile, d, bufSize, ".ecb");
 	}
 	zeroArray(bufSize, d);
 	zeroArray(bufSize, e);
@@ -140,10 +213,12 @@ int main(int argc, char* argv[]) {
 		printElapsedTime(AES::GPU::timer().getGpuElapsedTimeForPreviousOperation(), "Decrypt (std::chrono Measured)");
 		printCmpResult(ASIZE, a, e);
 
-
-
 		system("pause"); // stop Win32 console from closing on exit
 	}
+	if (infile.size()) {
+		writeFile(infile, d, bufSize, ".ctr");
+	}
+
 	free(a);
 	free(b);
 	free(c);
