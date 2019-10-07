@@ -146,12 +146,20 @@ namespace AES {
 		uint8_t* d_sbox;
 		uint8_t* d_rsbox;
 
+		/**
+		Need a container for the constant memory because alignment can be a problem when casting the roundkey to uint32_t for XOR'ing
+		*/
+		typedef struct __align__(256) AlignedBox {
+			uint8_t data[256];
+		} AlignedBox;
+
+		__constant__ AlignedBox csbox;
+		__constant__ AlignedBox crsbox;
+		__constant__ AlignedBox croundkey;
+
 		#define Nb 4//always 4 columns for stae
 		__constant__ uint8_t Nkvars[2];//first one is Nk, second one is Nr (Nk not used on device, I later learned)
 
-		__constant__ uint8_t csbox[256];
-		__constant__ uint8_t crsbox[256];
-		__constant__ uint8_t croundkey[240];
 
 		//####################
 		// KERNEL FUNCTIONS
@@ -337,19 +345,23 @@ namespace AES {
 			for (uint8_t i = 0; i < 4; i++) {
 				unsigned rkbase = (roundNum * Nb * 4) + (i * Nb);
 #if USING_VECTORS
-				//uchar4* keySegment = (uchar4*) &(roundKey[(roundNum * Nb * 4) + (i * Nb)]);
-				//state->data[i] = state->data[i] ^ *keySegment;
 
+				//*reinterpret_cast<uint32_t*>(&state->data[i]) = 
+				//	*reinterpret_cast<uint32_t*>(&state->data[i]) ^
+				//	*reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
 				state->data[i].x ^= roundKey[rkbase + 0];
 				state->data[i].y ^= roundKey[rkbase + 1];
 				state->data[i].z ^= roundKey[rkbase + 2];
 				state->data[i].w ^= roundKey[rkbase + 3];
 				
 #else
-				state->data[i][0] ^= roundKey[rkbase + 0];
-				state->data[i][1] ^= roundKey[rkbase + 1];
-				state->data[i][2] ^= roundKey[rkbase + 2];
-				state->data[i][3] ^= roundKey[rkbase + 3];
+				*reinterpret_cast<uint32_t*>(&state->data[i]) = 
+					*reinterpret_cast<uint32_t*>(&state->data[i]) ^ 
+					*reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
+				//state->data[i][0] ^= roundKey[rkbase + 0];
+				//state->data[i][1] ^= roundKey[rkbase + 1];
+				//state->data[i][2] ^= roundKey[rkbase + 2];
+				//state->data[i][3] ^= roundKey[rkbase + 3];
 #endif
 			}
 
@@ -454,9 +466,9 @@ namespace AES {
 			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
 			if (byteOffset >= bytesToEncrypt) return;
 			if (constantMem) {
-				sbox		= csbox;
-				rsbox		= crsbox;
-				roundkey	= croundkey;
+				sbox		= csbox.data;
+				rsbox		= crsbox.data;
+				roundkey	= croundkey.data;
 			}
 
 			for (int i = 0; i < numAblocksPerThread; i++) {
@@ -476,9 +488,9 @@ namespace AES {
 			long byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
 			if (byteOffset >= bytesToEncrypt) return;
 			if (constantMem) {
-				sbox		= csbox;
-				rsbox		= crsbox;
-				roundkey	= croundkey;
+				sbox		= csbox.data;
+				rsbox		= crsbox.data;
+				roundkey	= croundkey.data;
 			}
 
 			uint8_t myIv[AES_BLOCKLEN];
@@ -506,9 +518,9 @@ namespace AES {
 			int byteOffset = index * BYTES_PER_ABLOCK * numAblocksPerThread;
 			if (byteOffset >= bytesToEncrypt) return;
 			if (constantMem) {
-				sbox		= csbox;
-				rsbox		= crsbox;
-				roundkey	= croundkey;
+				sbox		= csbox.data;
+				rsbox		= crsbox.data;
+				roundkey	= croundkey.data;
 			}
 
 			for (int i = 0; i < numAblocksPerThread; i++) {
@@ -749,14 +761,17 @@ namespace AES {
 			uint8_t* roundkey = (uint8_t*)malloc(AES_KEY_EXP_SIZE * sizeof(uint8_t));
 			expandKey(key, roundkey, Nk, Nr);
 
-			cudaMalloc(&d_roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t));
-			checkCUDAError("cudaMalloc");
-			cudaMemcpy(d_roundkey, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t), cudaMemcpyHostToDevice);
-			checkCUDAError("cudamemcpy");
+
 
 			if (CONSTANTMEM) {
-				cudaMemcpyToSymbol(croundkey, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t));
+				cudaMemcpyToSymbol(croundkey.data, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t));
 				checkCUDAError("cudamemcpysymbol");
+			}
+			else {
+				cudaMalloc(&d_roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t));
+				checkCUDAError("cudaMalloc");
+				cudaMemcpy(d_roundkey, roundkey, AES_KEY_EXP_SIZE * sizeof(uint8_t), cudaMemcpyHostToDevice);
+				checkCUDAError("cudamemcpy");
 			}
 
 			free(roundkey);
@@ -798,16 +813,19 @@ namespace AES {
 		}
 
 		void initGlobalMemSbox() {
-			cudaMalloc(&d_sbox, 256 * sizeof(uint8_t));
-			cudaMalloc(&d_rsbox, 256 * sizeof(uint8_t));
-			checkCUDAError("cudamalloc");
-			cudaMemcpy(d_sbox, sbox, 256 * sizeof(uint8_t), cudaMemcpyHostToDevice);
-			cudaMemcpy(d_rsbox, rsbox, 256 * sizeof(uint8_t), cudaMemcpyHostToDevice);
-			checkCUDAError("cudamemcpy");
+
 			if (CONSTANTMEM) {
-				cudaMemcpyToSymbol(csbox, sbox, 256 * sizeof(uint8_t));
-				cudaMemcpyToSymbol(crsbox, rsbox, 256 * sizeof(uint8_t));
+				cudaMemcpyToSymbol(csbox.data, sbox, 256 * sizeof(uint8_t));
+				cudaMemcpyToSymbol(crsbox.data, rsbox, 256 * sizeof(uint8_t));
 				checkCUDAError("cudamemcpysymbol");
+			}
+			else {
+				cudaMalloc(&d_sbox, 256 * sizeof(uint8_t));
+				cudaMalloc(&d_rsbox, 256 * sizeof(uint8_t));
+				checkCUDAError("cudamalloc");
+				cudaMemcpy(d_sbox, sbox, 256 * sizeof(uint8_t), cudaMemcpyHostToDevice);
+				cudaMemcpy(d_rsbox, rsbox, 256 * sizeof(uint8_t), cudaMemcpyHostToDevice);
+				checkCUDAError("cudamemcpy");
 			}
 		}
 
@@ -818,8 +836,10 @@ namespace AES {
 		}
 
 		void deinitGlobalMemKey() {
-			cudaFree(d_roundkey);
-			checkCUDAError("cudafree");
+			if (!CONSTANTMEM) {
+				cudaFree(d_roundkey);
+				checkCUDAError("cudafree");
+			}
 		}
 
 		void deinitGlobalMemIv() {
@@ -828,9 +848,11 @@ namespace AES {
 		}
 
 		void deinitGlobalMemSbox() {
-			cudaFree(d_sbox);
-			cudaFree(d_rsbox);
-			checkCUDAError("cudafree");
+			if (!CONSTANTMEM) {
+				cudaFree(d_sbox);
+				cudaFree(d_rsbox);
+				checkCUDAError("cudafree");
+			}
 		}
 
 		//######################

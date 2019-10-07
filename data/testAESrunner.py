@@ -4,14 +4,13 @@ import os
 import subprocess
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
-import pdb
-
-
-MEMORY_MODES = ["normal", "shared", "parameter", "sharedKey", "sharedSBox", "constant"]
+MEMORY_MODES = ["Global", "Shared_Memory", "Parameter", "Shared_Key_Only", "Shared_SBox_Only", "Global_Constant"]
 
 baseExecutablePath = "../build/Release/cis565_aes_test.exe"
 imgPath = "../img/blade_model.jpg"
+imgRoot = "../img"
 
 def transformPicture(picturePath):
     #read it in python-style, output it to binary, encrypt, read those in python-style, output as pictures
@@ -61,8 +60,21 @@ def transformPicture(picturePath):
     os.remove(ecbDest)
     os.remove(ctrDest)
 
+def getAverageRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerThread = 1):
 
-def getRunResults(memoryMode, blockSize = 256, keySize = 256):
+    runResults = list(getRunResults(memoryMode, blockSize, keySize, blocksPerThread))
+
+    for i in range(1,20):
+        nextResults = list(getRunResults(memoryMode, blockSize, keySize, blocksPerThread))
+        for j in range(4):
+            runResults[j] *= i / (i + 1.0)
+            runResults[j] += nextResults[j] * (1.0 / (i + 1))
+
+    print(runResults)
+    return runResults
+            
+
+def getRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerThread = 1):
     args = [baseExecutablePath, "-q"]
 
     if memoryMode == MEMORY_MODES[0]:
@@ -84,9 +96,11 @@ def getRunResults(memoryMode, blockSize = 256, keySize = 256):
     args.append("-k")
     args.append(str(keySize))
 
+    args.append("-n")
+    args.append(str(blocksPerThread))
+
     results = subprocess.run(args, capture_output=True)
     resultString = results.stdout.decode("ascii")
-    print(resultString)
     ecbEnc, ecbDec, ctrEnc, ctrDec = resultString.split()
     ecbEnc = float(ecbEnc)
     ecbDec = float(ecbDec)
@@ -95,10 +109,10 @@ def getRunResults(memoryMode, blockSize = 256, keySize = 256):
 
     return (ecbEnc, ecbDec, ctrEnc, ctrDec)
 
-def testMemoryModes(blockSize = 256, keySize = 256):
+def testMemoryModes(blockSize = 256, keySize = 256, blocksPerThread = 1):
     results = {}
     for memoryMode in MEMORY_MODES:
-        resultSet = getRunResults(memoryMode, blockSize)
+        resultSet = getAverageRunResults(memoryMode, blockSize)
         results[memoryMode] = resultSet
 
     return results
@@ -106,9 +120,7 @@ def testMemoryModes(blockSize = 256, keySize = 256):
 
 def main():
    
-    transformPicture(imgPath)
-
-    results = getRunResults("sharedKey", 512)
+    #transformPicture(imgPath)
 
     results = testMemoryModes(256, 192)
     for k, v in results.items():

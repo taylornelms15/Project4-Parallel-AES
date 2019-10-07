@@ -14,7 +14,7 @@
 #include "aes.hpp"
 
 #define ASSERTING 1
-#define USING_VECTORS 0
+#define USING_VECTORS 1
 #define BYTES_PER_ABLOCK 16
 
 //some constants
