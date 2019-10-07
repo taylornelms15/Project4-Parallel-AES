@@ -183,6 +183,29 @@ This was the resulting performance profile:
 
 The encryption operation as a whole saw a nearly 20% speedup from that change alone, which is extremely significant. Furthermore, the usage of the compute capability of the CPU drastically increased. While the other steps may not have had as many efficient changes, this one was particularly striking in just how well it cut down on operation time.
 
+#### Removing Function Calls
+
+When looking at the source code in the profile for the Debug build, I saw that each call to my fixed-field arithmetic primitives was using a lot of memory just for the function calling. This was related to how I was implementing my multiplication: I was doing so as a single entry function that then directed the value towards the correct operand. Replacing that seems to have "inlined" both operations.
+
+TODO: explain this better
+
+```C
+__host__ __device__  uint8_t gfmult2(uint8_t x) {
+  uint8_t result = (x >> 7) ? (x << 1) ^ GF_MAGIC : (x << 1);
+  return result;
+}
+
+__host__ __device__  uint8_t gfmult3(uint8_t x) {
+  uint8_t result = ((x >> 7) ? (x << 1) ^ GF_MAGIC : (x << 1)) ^ x;
+  //uint8_t result = gfmult2(x) ^ x;
+  return result;
+}
+```
+
+In the `Debug` configuration, this cut the overall time in half(!). This is indicative of just how much operation was happening inside the `Mix Columns` step.
+
+It's hard to tell if the same can be said in `Release` mode; I suspect it's already taken care of. Nonetheless, it seemed a worthy improvement to make, at least somewhat for the sake of readability.
+
 ## Performance Analysis
 
 ![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
