@@ -138,7 +138,11 @@ As we know, each CUDA block can contain a different number of threads. I allow f
 
 #### Vector Bitwise Operations
 
-For the step of adding the round key to the current state, I was stymied by the lack of 
+For the step of adding the round key to the current state, I was stymied by the lack of vector bitwise operations. I allowed for treating the state as both a set of four `uchar4` structs, or as an array of four `uint8_t[4]` arrays, but was unable to get any performance benefit out of it.
+
+However, for a step as easy as bitwise-xor'ing a whole block of data, it turns out that there was still improvement to be made.
+
+For the encrypt step, this is the code I started with for the `addKey` operation:
 
 ```C
 __device__ void addKey(State* state, const uint8_t* roundKey, uint8_t roundNum) {
@@ -146,9 +150,6 @@ __device__ void addKey(State* state, const uint8_t* roundKey, uint8_t roundNum) 
   for (uint8_t i = 0; i < 4; i++) {
     unsigned rkbase = (roundNum * Nb * 4) + (i * Nb);
     
-    //*reinterpret_cast<uint32_t*>(&state->data[i]) = 
-    //  *reinterpret_cast<uint32_t*>(&state->data[i]) ^
-    //  *reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
     state->data[i].x ^= roundKey[rkbase + 0];
     state->data[i].y ^= roundKey[rkbase + 1];
     state->data[i].z ^= roundKey[rkbase + 2];
@@ -156,6 +157,29 @@ __device__ void addKey(State* state, const uint8_t* roundKey, uint8_t roundNum) 
   }
 }
 ```
+
+This is the performance profile I got from it:
+
+![Profile without casting key](img/computeWithoutCast.png)
+
+But in investigating the compiled code, I noticed that loads were happening one byte at a time for the `xor` operation. I changed the code to the following:
+
+```C
+__device__ void addKey(State* state, const uint8_t* roundKey, uint8_t roundNum) {
+
+  for (uint8_t i = 0; i < 4; i++) {
+    unsigned rkbase = (roundNum * Nb * 4) + (i * Nb);
+    
+    *reinterpret_cast<uint32_t*>(&state->data[i]) = 
+      *reinterpret_cast<uint32_t*>(&state->data[i]) ^
+      *reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
+  }
+}
+```
+
+This was the resulting performance profile:
+
+![Profile with casting key](img/computeWithCast.png)
 
 ## Performance Analysis
 
