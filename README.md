@@ -39,10 +39,14 @@ This has the disadvantage that, for repeated plaintext data, the ciphertext will
   <img src="img/blade_model.jpg" alt="Original Content">
   <figcaption>Original Content</figcaption>
 </figure>
-![Results of ECB Encryption](img/blade_model_ecb.jpg)
-*Results of ECB Encryption*
-![Results of CTR Encryption](img/blade_model_ctr.jpg)
-*Results of CTR Encryption*
+<figure class="image">
+  <img src="img/blade_model_ecb.jpg" alt="ECB Encryption">
+  <figcaption>Encrypted using ECB</figcaption>
+</figure>
+<figure class="image">
+  <img src="img/blade_model_ctr.jpg" alt="CTR Encryption">
+  <figcaption>Encrypted using CTR</figcaption>
+</figure>
 
 #### CTR
 
