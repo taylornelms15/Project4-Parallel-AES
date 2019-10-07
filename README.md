@@ -105,10 +105,6 @@ Though it may have been technically feasible to parallelize or pipeline dataflow
 
 I allow for one thread to encrypt/decrypt multiple AES blocks as well, to see if there is any advantage to reducing the thread count overall and instead have each thread do more work.
 
-#### Block Size
-
-As we know, each thread can
-
 #### Memory
 
 The input and output buffers are, of course, very large, and each thread will need to access a different part of them. As such, global memory seems the reasonable place to keep them.
@@ -123,6 +119,10 @@ As such, we have a few options of how to put these chunks of data (containing up
     * Implementation allows for putting the key, the substitution boxes, or both into shared memory
 * Wrap the tables into a struct and pass them directly to each kernel via a parameter to the `__global__ void` function
 
+#### CUDA Block Size
+
+As we know, each CUDA block can contain a different number of threads. I allow for dynamically configurable block sizes, and can thereby analyze the performance impacts thereof.
+
 ## Performance Analysis
 
 
@@ -130,5 +130,5 @@ As such, we have a few options of how to put these chunks of data (containing up
 
 ## References
 
-* CPU baseline implementation taken from kokke's [tiny-AES-c](https://github.com/kokke/tiny-AES-c.git) implementation
+* CPU baseline implementation and key expansion implementation taken from kokke's [tiny-AES-c](https://github.com/kokke/tiny-AES-c.git) implementation
 * Command-line parsing using [cxxopts](https://github.com/jarro2783/cxxopts)
