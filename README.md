@@ -13,6 +13,52 @@ Encryption is a pervasive element of cybersecurity; however, despite needing to 
 
 This project will endeavor to optimize a parallel approach to AES encryption on the GPU via the CUDA programming frameworks. I will attempt to tweak any and all configuration parameters and memory access patterns to allow for highly efficient encryption/decryption leveraging the GPU's capabilities.
 
+## The AES Algorithm
+
+The **Advanced Encryption Standard**, or **AES**, is an encryption algorithm adopted by NIST in 2001. It was developed, and subsequently adopted, to fill holes and vulnerabilities in the Data Encryption Standard (which dated back to 1977).
+
+It is a **block cipher** that operates with a symmetric key. This means that it operates on fixed-length blocks of data; in this case, **16-byte** blocks. The idea behind symmetric-key encryption is that a single key is used to both encrypt and decrypt the data; this is in contrast to an algorithm like RSA, which uses two related, asymmetric keys (containing both a public and private component) to encrypt data between two parties.
+
+The AES standard is defined for key lengths of **128**, **192**, and **256-bit** key sizes (16, 24, and 32 bytes). A well-used AES with a 128-bit key is considered effectively unbreakable via brute force methods; the larger key sizes are even more so.
+
+### AES Modes
+
+There are a few different ways to implement a block cipher like AES. The algorithm itself only applies to a single block of plaintext and how it combines with a key to produce the ciphertext; for larger data, we can approach the encryption in different fashions.
+
+#### ECB
+
+The easiest mode is **Electronic Codebook**, or **ECB**. This simply encrypts each block of plaintext using the same key in the same manner, and appends the results together.
+
+This method is naively parallelizable, as the same operation is applied to each block of plaintext; it is one of the modes implemented in this project.
+
+This has the disadvantage that, for repeated plaintext data, the ciphertext will be similarly repeated. As such, even though retrieving the exact plaintext may be impossible, the structure of the plaintext data may still be visible.
+
+TODO: create image of the penguin, or similar
+
+#### CTR
+
+**Counter** mode, or **CTR**, takes a different approach. It requires an **Initialization Vector**, or **IV**, along with the key and plantext to operate. This IV is the same size as the block length (16 bytes). This IV is encrypted with the key, and then **XOR**'d with the first block of plaintext to produce the first block of ciphertext. The IV is then incremented for the next block, and the process repeats.
+
+Notably, this means that for any IV, we can determine what the IV will be at a given block in the ciphertext. As such, we can easily parallelize this approach, with each kernel operating on what it knows the IV will be at its location.
+
+It is important when using this mode to not re-use the same IV with any key. Every combination of key and IV will create a unique string of data, which, when **XOR**'d with a string of plaintext, produces the ciphertext. This can lead to information leaks, where, if you know both the ciphertext and plaintext for a given key-iv pair, you can then produce the encryption string for that pair with a simple xor operation.
+
+One slight advantage of this approach, though, is that encryption and decryption use the same operation, as each simply construct the encryption-string and xor the plaintext/ciphertext with it.
+
+#### CBC
+
+**Cipher Block Chaining**, or **CBC** mode, is considered slightly more secure than CTR. Instead of simply incrementing a previous block's **IV** to get the IV for the next block, it operates by **XOR**ing the plaintext with the first IV, encrypting that, and then using the resulting ciphertext as the IV for the next step.
+
+This has the advantage that each block of ciphertext is dependent on the plaintext for that block, the key, the initial IV, and every block of plaintext that came before it.
+
+Unfortunately for us, this means it is impossible to data-parallelize, and it is not considered in this GPU implementation.
+
+### Padding
+
+For data that does not fit within the block size, data ends up padded to meet the block size requirements. For my implementation, I used [PKCS#7](https://en.wikipedia.org/wiki/Padding_(cryptography)#PKCS#5_and_PKCS#7) padding (though other methods could be used); in brief, this involves figuring out how many bytes short of a block the data is, and adding bytes containing that value to the end until it is full. (If we are already at a block boundary, an extra block is added.)
+
+For example, if our data contained a final partial block with only four bytes in it, we would pad the remaining 12 (`0x0C`) to the end in the following manner: "0xXX 0xYY 0xZZ 0xWW **0x0C 0x0C 0x0C 0x0C 0x0C 0x0C 0x0C 0x0C 0x0C 0x0C 0x0C 0x0C**".
+
 ## Notes for Implementation
 
 sbox, rsbox: 256-size byte arrays for lookups. can compare global memory to shared memory for them. Rcon-11 bytes, same thing. (this is for key expansion)
