@@ -7,6 +7,8 @@ CUDA AES Encryption
   * [LinkedIn](https://www.linkedin.com/in/taylor-k-7b2110191/), [twitter](https://twitter.com/nelms_taylor)
 * Tested on: Windows 10, Intel i3 Coffee Lake 4-core 3.6GHz processor, 16GB RAM, NVidia GeForce GTX1650 4GB
 
+![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
+
 ## Motivation
 
 Encryption is a pervasive element of cybersecurity; however, despite needing to encrypt vast amounts of data, there is a relative lack of parallelizable options to do so. Some of that is algorithmic in nature; various encryption algorithms are data-dependent in an unbroken chain from the first bit to the last. However, there are algorithms that allow for a data-parallel approach to encryption; in particular, the ECB and CTR encryption modes of the AES algorithm allow for such an operation.
@@ -117,12 +119,25 @@ As such, we have a few options of how to put these chunks of data (containing up
     * Implementation allows for putting the key, the substitution boxes, or both into shared memory
 * Wrap the tables into a struct and pass them directly to each kernel via a parameter to the `__global__ void` function
 
+#### CUDA Block Size
+
+As we know, each CUDA block can contain a different number of threads. I allow for dynamically configurable block sizes, and can thereby analyze the performance impacts thereof.
+
 ## Performance Analysis
 
+![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
 
+We see from this chart that, for data ranges between roughly `250KB` and `250MB`, we acheive a nearly 150-times speedup for our GPU implementation over a CPU implementation, just using global memory for our constant tables and expanded key.
 
+However, we have identified a number of tunable parameters that we can use to adjust performance time for GPU operations; as such, further analysis will consider GPU implementations against each other, rather than compared to the CPU implementations.
+
+##### Why the longer time for ECB decryption?
+
+It is worth noting, before we go further, that while ECB encryption, CTR encryption, and CTR decryption all have functionally identical execution times, the same cannot be said for ECB decryption, which often runs close to twice as long. Why is that? Most of the encryption/decryption steps are nearly identical and very symmetric; however, the **Mix Columns** step contains a huge computational load for decryption that did not exist for encryption.
+
+TODO: explain the difference, and show the Speed of Light graph that points to it as well.
 
 ## References
 
-* CPU baseline implementation taken from kokke's [tiny-AES-c](https://github.com/kokke/tiny-AES-c.git) implementation
+* CPU baseline implementation and key expansion implementation taken from kokke's [tiny-AES-c](https://github.com/kokke/tiny-AES-c.git) implementation
 * Command-line parsing using [cxxopts](https://github.com/jarro2783/cxxopts)
