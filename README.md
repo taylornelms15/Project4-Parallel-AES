@@ -125,8 +125,17 @@ As we know, each CUDA block can contain a different number of threads. I allow f
 
 ## Performance Analysis
 
+![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
 
+We see from this chart that, for data ranges between roughly `250KB` and `250MB`, we acheive a nearly 150-times speedup for our GPU implementation over a CPU implementation, just using global memory for our constant tables and expanded key.
 
+However, we have identified a number of tunable parameters that we can use to adjust performance time for GPU operations; as such, further analysis will consider GPU implementations against each other, rather than compared to the CPU implementations.
+
+##### Why the longer time for ECB decryption?
+
+It is worth noting, before we go further, that while ECB encryption, CTR encryption, and CTR decryption all have functionally identical execution times, the same cannot be said for ECB decryption, which often runs close to twice as long. Why is that? Most of the encryption/decryption steps are nearly identical and very symmetric; however, the **Mix Columns** step contains a huge computational load for decryption that did not exist for encryption.
+
+TODO: explain the difference, and show the Speed of Light graph that points to it as well.
 
 ## References
 
