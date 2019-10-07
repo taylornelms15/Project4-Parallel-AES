@@ -181,6 +181,8 @@ This was the resulting performance profile:
 
 ![Profile with casting key](img/computeWithCast.png)
 
+The encryption operation as a whole saw a nearly 20% speedup from that change alone, which is extremely significant. Furthermore, the usage of the compute capability of the CPU drastically increased. While the other steps may not have had as many efficient changes, this one was particularly striking in just how well it cut down on operation time.
+
 ## Performance Analysis
 
 ![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
