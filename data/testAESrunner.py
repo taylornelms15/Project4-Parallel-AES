@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import re
 import subprocess
 import cv2
 import numpy as np
@@ -60,11 +61,53 @@ def transformPicture(picturePath):
     os.remove(ecbDest)
     os.remove(ctrDest)
 
+def getGroupedBarChart(runResultsTuples, tupleLabels, groupTitles, xTitle, yTitle, chartTitle, chartSubtitle = None, filename = None):
+    """
+    @param runResultsTuples: list of tuples (one tuple per bar)
+    @param tupleLabels: How the above tuples should be labeled
+    @param groupTitles: how each list element in runResultsTuples should be titled (turns to column groups)
+    @param xTitle: Title for X axis
+    @param yTitle: Title for Y axis
+    @param chartTitle: Title for chart
+    @param chartSubtitle: Subtitle for chart
+    @param filename: output file path, if saving png directly
+    """
+    numColumns = len(runResultsTuples)
+    numPerCol = len(runResultsTuples[0])
+
+    fig, ax = plt.subplots()
+    ind = np.arange(numColumns)
+    width = 1.0 / (numPerCol + 1)
+
+    plist = []
+
+    for i in range(numPerCol):
+        setVals = [x[i] for x in runResultsTuples]
+        plist.append(ax.bar(ind + i * width, setVals, width, align = "edge"))
+
+    plt.suptitle(chartTitle, fontweight = "bold")
+    if chartSubtitle:
+        ax.set_title(chartSubtitle)
+    ax.set_xlabel(xTitle, fontweight = "bold")
+    ax.set_ylabel(yTitle, fontweight = "bold")
+    ax.set_xticks(ind + width * numPerCol / 2.0)
+    ax.set_xticklabels(groupTitles)
+
+    ax.legend(tuple([x[0] for x in plist]), tupleLabels)
+
+    if not filename:
+        plt.show()
+    else:
+        pass
+        #TODO: remember how to save
+
+    
+
 def getAverageRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerThread = 1):
 
     runResults = list(getRunResults(memoryMode, blockSize, keySize, blocksPerThread))
 
-    for i in range(1,20):
+    for i in range(1,50):
         nextResults = list(getRunResults(memoryMode, blockSize, keySize, blocksPerThread))
         for j in range(4):
             runResults[j] *= i / (i + 1.0)
@@ -111,9 +154,23 @@ def getRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerThread = 
 
 def testMemoryModes(blockSize = 256, keySize = 256, blocksPerThread = 1):
     results = {}
+    resultTuples = []
     for memoryMode in MEMORY_MODES:
+        if memoryMode == MEMORY_MODES[2]:
+            continue#skip parameter
         resultSet = getAverageRunResults(memoryMode, blockSize)
+        resultTuples.append(resultSet)
         results[memoryMode] = resultSet
+
+    groupTitles = [re.sub("_", " ", x) for x in MEMORY_MODES if x is not MEMORY_MODES[2]]
+    tupleTitles = ["ECB Encrypt", "ECB Decrypt", "CTR Encrypt", "CTR Decrypt"]
+    xTitle = "Memory Access Mode"
+    yTitle = "Completion Time (ms)"
+    chartTitle = "Performance of Different Memory Access Modes"
+    chartSubtitle = "16.78MB Input, %s-bit AES, %s threads per block" % (keySize, blockSize)
+
+    getGroupedBarChart(resultTuples, tupleTitles, groupTitles,\
+            xTitle, yTitle, chartTitle, chartSubtitle)
 
     return results
 
@@ -122,7 +179,7 @@ def main():
    
     #transformPicture(imgPath)
 
-    results = testMemoryModes(256, 192)
+    results = testMemoryModes(64, 192)
     for k, v in results.items():
         print("%s\t%s" % (k, v))
 

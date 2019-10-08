@@ -82,7 +82,8 @@ namespace AES {
 		}
 
 		__host__ __device__  uint8_t gfmult3(uint8_t x) {
-			uint8_t result = gfmult2(x) ^ x;
+			uint8_t result = ((x >> 7) ? (x << 1) ^ GF_MAGIC : (x << 1)) ^ x;
+			//uint8_t result = gfmult2(x) ^ x;
 			return result;
 		}
 
@@ -302,16 +303,22 @@ namespace AES {
 			for (uint8_t i = 0; i < 4; i++) {
 #if USING_VECTORS
 				uchar4 oldvals = state->data[i];
+				state->data[i].x = gfmult2(oldvals.x) ^ gfmult3(oldvals.y) ^ oldvals.z ^ oldvals.w;
+				state->data[i].y = oldvals.x ^ gfmult2(oldvals.y) ^ gfmult3(oldvals.z) ^ oldvals.w;
+				state->data[i].z = oldvals.x ^ oldvals.y ^ gfmult2(oldvals.z) ^ gfmult3(oldvals.w);
+				state->data[i].w = gfmult3(oldvals.x) ^ oldvals.y ^ oldvals.z ^ gfmult2(oldvals.w);
+				/*
 				state->data[i].x = gfmult(oldvals.x, 0x02) ^ gfmult(oldvals.y, 0x03) ^ oldvals.z ^ oldvals.w;
 				state->data[i].y = oldvals.x ^ gfmult(oldvals.y, 0x02) ^ gfmult(oldvals.z, 0x03) ^ oldvals.w;
 				state->data[i].z = oldvals.x ^ oldvals.y ^ gfmult(oldvals.z, 0x02) ^ gfmult(oldvals.w, 0x03);
 				state->data[i].w = gfmult(oldvals.x, 0x03) ^ oldvals.y ^ oldvals.z ^ gfmult(oldvals.w, 0x02);
+				*/
 #else
 				uint8_t oldvals[4] = { state->data[i][0], state->data[i][1], state->data[i][2], state->data[i][3] };
-				state->data[i][0] = gfmult(oldvals[0], 0x02) ^ gfmult(oldvals[1], 0x03) ^ oldvals[2] ^ oldvals[3];
-				state->data[i][1] = oldvals[0] ^ gfmult(oldvals[1], 0x02) ^ gfmult(oldvals[2], 0x03) ^ oldvals[3];
-				state->data[i][2] = oldvals[0] ^ oldvals[1] ^ gfmult(oldvals[2], 0x02) ^ gfmult(oldvals[3], 0x03);
-				state->data[i][3] = gfmult(oldvals[0], 0x03) ^ oldvals[1] ^ oldvals[2] ^ gfmult(oldvals[3], 0x02);
+				state->data[i][0] = gfmult2(oldvals[0]) ^ gfmult3(oldvals[1]) ^ oldvals[2] ^ oldvals[3];
+				state->data[i][1] = oldvals[0] ^ gfmult2(oldvals[1]) ^ gfmult3(oldvals[2]) ^ oldvals[3];
+				state->data[i][2] = oldvals[0] ^ oldvals[1] ^ gfmult2(oldvals[2]) ^ gfmult3(oldvals[3]);
+				state->data[i][3] = gfmult3(oldvals[0]) ^ oldvals[1] ^ oldvals[2] ^ gfmult2(oldvals[3]);
 #endif
 			}//for
 		}//mixColumns
@@ -324,16 +331,16 @@ namespace AES {
 			for (uint8_t i = 0; i < 4; i++) {
 #if USING_VECTORS
 				uchar4 oldvals = state->data[i];
-				state->data[i].x = gfmult(oldvals.x, 0x0E) ^ gfmult(oldvals.y, 0x0B) ^ gfmult(oldvals.z, 0x0D) ^ gfmult(oldvals.w, 0x09);
-				state->data[i].y = gfmult(oldvals.x, 0x09) ^ gfmult(oldvals.y, 0x0E) ^ gfmult(oldvals.z, 0x0B) ^ gfmult(oldvals.w, 0x0D);
-				state->data[i].z = gfmult(oldvals.x, 0x0D) ^ gfmult(oldvals.y, 0x09) ^ gfmult(oldvals.z, 0x0E) ^ gfmult(oldvals.w, 0x0B);
-				state->data[i].w = gfmult(oldvals.x, 0x0B) ^ gfmult(oldvals.y, 0x0D) ^ gfmult(oldvals.z, 0x09) ^ gfmult(oldvals.w, 0x0E);
+				state->data[i].x = gfmult14(oldvals.x) ^ gfmult11(oldvals.y) ^ gfmult13(oldvals.z) ^ gfmult9(oldvals.w);
+				state->data[i].y = gfmult9(oldvals.x) ^ gfmult14(oldvals.y) ^ gfmult11(oldvals.z) ^ gfmult13(oldvals.w);
+				state->data[i].z = gfmult13(oldvals.x) ^ gfmult9(oldvals.y) ^ gfmult14(oldvals.z) ^ gfmult11(oldvals.w);
+				state->data[i].w = gfmult11(oldvals.x) ^ gfmult13(oldvals.y) ^ gfmult9(oldvals.z) ^ gfmult14(oldvals.w);
 #else
 				uint8_t oldvals[4] = { state->data[i][0], state->data[i][1], state->data[i][2], state->data[i][3] };
-				state->data[i][0] = gfmult(oldvals[0], 0x0E) ^ gfmult(oldvals[1], 0x0B) ^ gfmult(oldvals[2], 0x0D) ^ gfmult(oldvals[3], 0x09);
-				state->data[i][1] = gfmult(oldvals[0], 0x09) ^ gfmult(oldvals[1], 0x0E) ^ gfmult(oldvals[2], 0x0B) ^ gfmult(oldvals[3], 0x0D);
-				state->data[i][2] = gfmult(oldvals[0], 0x0D) ^ gfmult(oldvals[1], 0x09) ^ gfmult(oldvals[2], 0x0E) ^ gfmult(oldvals[3], 0x0B);
-				state->data[i][3] = gfmult(oldvals[0], 0x0B) ^ gfmult(oldvals[1], 0x0D) ^ gfmult(oldvals[2], 0x09) ^ gfmult(oldvals[3], 0x0E);
+				state->data[i][0] = gfmult14(oldvals[0]) ^ gfmult11(oldvals[1]) ^ gfmult13(oldvals[2]) ^ gfmult9(oldvals[3]);
+				state->data[i][1] = gfmult9(oldvals[0]) ^ gfmult14(oldvals[1]) ^ gfmult11(oldvals[2]) ^ gfmult13(oldvals[3]);
+				state->data[i][2] = gfmult13(oldvals[0]) ^ gfmult9(oldvals[1]) ^ gfmult14(oldvals[2]) ^ gfmult11(oldvals[3]);
+				state->data[i][3] = gfmult11(oldvals[0]) ^ gfmult13(oldvals[1]) ^ gfmult9(oldvals[2]) ^ gfmult14(oldvals[3]);
 #endif
 			}//for
 		}//mixColumns
@@ -360,10 +367,6 @@ namespace AES {
 				*reinterpret_cast<uint32_t*>(&state->data[i]) = 
 					*reinterpret_cast<uint32_t*>(&state->data[i]) ^ 
 					*reinterpret_cast<const uint32_t*>(&roundKey[rkbase]);
-				//state->data[i][0] ^= roundKey[rkbase + 0];
-				//state->data[i][1] ^= roundKey[rkbase + 1];
-				//state->data[i][2] ^= roundKey[rkbase + 2];
-				//state->data[i][3] ^= roundKey[rkbase + 3];
 #endif
 			}
 
