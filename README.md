@@ -220,7 +220,43 @@ It is worth noting, before we go further, that while ECB encryption, CTR encrypt
 
 TODO: explain the difference, and show the Speed of Light graph that points to it as well.
 
+### Memory Modes
+
+With a few modes by which we accessed the memory for the `RoundKey` and `SBox` variables, let us look at the performance impacts of our decisions:
+
+![Effects of memory mode on performance](img/MemAccessModeChartWithParam.png)
+
+So, the elephant in the room is that passing the `SBox` and `RoundKey` variables to the global kernel calls as parameters is a **terrible** idea.
+
+TODO: expand upon this, use profiling tools
+
+
+![Effects of memory mode on performance](img/MemAccessModeChart.png)
+
+Looking a little more closely at our different modes of accessing memory, we see the striking results of... no meaningful difference at all.
+
+What could cause this? Certainly, the distinctions between global memory, constant memory, and shared memory should have some kind of performance implication, right?
+
+We can look into the profile tools to try and figure out the causes behind this anomaly:
+
+TODO: put in relevant profiling revelations
+
+According to Rob Farber's book, *Cuda Application Design and Development* (see chapter 5), any global memory that is read-only and accessed in a `const` fashion can end up optimized to act like Constant memory by the compiler, which explains why the constant-memory approach offers no significant speedup. Specifically, accesses end up going directly to the L1 cache.
+
+Additionally, we can see that for shared memory approaches, even though many of our accesses are going through the shared rather than global memory lanes, the incredible cache hit ratios we're getting means that our global memory accesses are no less efficient than our shared memory accesses. Effectively, most of our load operations don't need to go past the multiprocessor itself.
+
+While this is underwhelming for academic comparison, it does show the incredible steps the compiler goes through to make even "lazier" code more efficient.
+
+#### Can we do better?
+
+Looking at the accesses themselves, it looks like our local state is being loaded/stored into local (cached) memory. Since so many of our operations are purely dependent on the local state, surely we could force some of that into registers to reduce overhead, right?
+
+Unfortunately, this is where I run into an issue; the CUDA compiler *really* doesn't want me to be able to force an array (even a static one) into registers. For most of our applications here, we end up occupying 45-55 registers per thread anyhow; fitting an additional 16 in for the sake of the working state apparently did not cross the compiler's mind. While there might be a way to refactor around this, I'm not aware of a good path to do so.
+
+#### TODO: see if memory still acts like this with more ablocks per thread, or with different block sizes
+
 ## References
 
 * CPU baseline implementation and key expansion implementation taken from kokke's [tiny-AES-c](https://github.com/kokke/tiny-AES-c.git) implementation
 * Command-line parsing using [cxxopts](https://github.com/jarro2783/cxxopts)
+* [CUDA Application Design and Development](http://www.hds.bme.hu/~fhegedus/C++/CUDA_Application_Design.pdf) (pdf link) by Rob Farber
