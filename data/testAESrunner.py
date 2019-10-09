@@ -163,6 +163,7 @@ def testMemoryModes(blockSize = 256, keySize = 256, blocksPerThread = 1):
         results[memoryMode] = resultSet
 
     groupTitles = [re.sub("_", " ", x) for x in MEMORY_MODES if x is not MEMORY_MODES[2]]
+#    groupTitles = [re.sub("_", " ", x) for x in MEMORY_MODES]
     tupleTitles = ["ECB Encrypt", "ECB Decrypt", "CTR Encrypt", "CTR Decrypt"]
     xTitle = "Memory Access Mode"
     yTitle = "Completion Time (ms)"
