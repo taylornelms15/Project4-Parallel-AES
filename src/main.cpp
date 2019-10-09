@@ -21,12 +21,12 @@ const unsigned int RANDSEED = 0xbad1bad2;
 const unsigned int RANDSEED2 = 0x0123fed5;
 const unsigned int RANDSEED3 = 0x56781234;
 
-const int SIZE = 1 << 24; // feel free to change the size of array
+const int SIZE = 1 << 16; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 #if OFFPOT
-static int ASIZE = NPOT;
+static unsigned int ASIZE = NPOT;
 #else
-static int ASIZE = SIZE;
+static unsigned int ASIZE = SIZE;
 #endif
 
 static std::string infile = std::string();
@@ -86,6 +86,7 @@ int main(int argc, char* argv[]) {
 		("q,quiet", "Runs just the GPU tests, outputs just the timings for automatic consumption")
 		("i,infile", "Specifies a file to encrypt", cxxopts::value<std::string>())
 		("x,key", "Specified a hex key to use; must be correct length", cxxopts::value<std::string>())
+		("z,inputsizefactor", "Size of input (ends up being 2^[siZe] bytes)", cxxopts::value<int>())
 		;
 	auto result = options.parse(argc, argv);
 	bool sharedmemKey = false; bool sharedmemSBox = false; 
@@ -104,6 +105,11 @@ int main(int argc, char* argv[]) {
 	}
 	if (result.count("key")) {
 		keycontents = result["key"].as<std::string>();
+	}
+	if (result.count("inputsizefactor")) {
+		int factor = result["inputsizefactor"].as<int>();
+		if (factor > 5 && factor < 32)
+			ASIZE = 1 << factor;
 	}
 
 	ingestCommandLineOptions(keysize, blocksize, blocksperthread, sharedmemKey, sharedmemSBox, parameter, quiet, constant);
