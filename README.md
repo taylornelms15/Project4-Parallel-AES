@@ -187,8 +187,6 @@ The encryption operation as a whole saw a nearly 20% speedup from that change al
 
 When looking at the source code in the profile for the Debug build, I saw that each call to my fixed-field arithmetic primitives was using a lot of memory just for the function calling. This was related to how I was implementing my multiplication: I was doing so as a single entry function that then directed the value towards the correct operand. Replacing that seems to have "inlined" both operations.
 
-TODO: explain this better
-
 ```C
 __host__ __device__  uint8_t gfmult2(uint8_t x) {
   uint8_t result = (x >> 7) ? (x << 1) ^ GF_MAGIC : (x << 1);
@@ -202,21 +200,37 @@ __host__ __device__  uint8_t gfmult3(uint8_t x) {
 }
 ```
 
+What I end up with are two primitives that I can then use to significantly improve the encryption step of the process, and even simplify portions of the decryption steps. Considering that most of the extra computational complexity of the decryption comes from the more heavy-duty `Mix Columns` step, and that that complexity comes with an occasionally `2x` performance time impact, every little bit on this innermost loop helps.
+
 In the `Debug` configuration, this cut the overall time in half(!). This is indicative of just how much operation was happening inside the `Mix Columns` step.
 
 It's hard to tell if the same can be said in `Release` mode; I suspect it's already taken care of. Nonetheless, it seemed a worthy improvement to make, at least somewhat for the sake of readability.
 
 ## Performance Analysis
 
+### Vs Baseline
+
 ![Encryption/Decryption Times on CPU and GPU by Input Size](img/InputSizeChart.png)
 
 We see from this chart that, for data ranges between roughly `250KB` and `250MB`, we acheive a nearly 150-times speedup for our GPU implementation over a CPU implementation, just using global memory for our constant tables and expanded key.
+
+The other interesting thing here is that, for these input sizes, performance scales pretty well linearly (note the logarithmic axes for both `x` and `y`). This is a good sign that we are looking at input sizes that are able to hide the CUDA overhead for launching our execution kernels, which bodes well for further analysis.
 
 However, we have identified a number of tunable parameters that we can use to adjust performance time for GPU operations; as such, further analysis will consider GPU implementations against each other, rather than compared to the CPU implementations.
 
 ##### Why the longer time for ECB decryption?
 
 It is worth noting, before we go further, that while ECB encryption, CTR encryption, and CTR decryption all have functionally identical execution times, the same cannot be said for ECB decryption, which often runs close to twice as long. Why is that? Most of the encryption/decryption steps are nearly identical and very symmetric; however, the **Mix Columns** step contains a huge computational load for decryption that did not exist for encryption.
+
+Let's see what that looks like in the profiler:
+
+###### Encryption
+
+![Encryption Image](img/globalmem_encrypt.png)
+
+###### Decryption
+
+![Decryption Image](img/globalmem_decrypt.png)
 
 TODO: explain the difference, and show the Speed of Light graph that points to it as well.
 
@@ -228,7 +242,7 @@ With a few modes by which we accessed the memory for the `RoundKey` and `SBox` v
 
 So, the elephant in the room is that passing the `SBox` and `RoundKey` variables to the global kernel calls as parameters is a **terrible** idea.
 
-![Memory Report - Parameter](img/report_parameter.png)
+![Memory Report - Parameter](img/report_parameter_mem.png)
 
 Here, we see a lot more calls to device memory than the other profiles (shown in the section below), and a lot more instances where the memory pipes are busy, and/or the L2 cache ends up missing. This relates to how much data we're putting on each kernel; if each one is treating this struct full of some 752 bytes as a potentially separate variable, it stands to reason that we're putting a lot of redundant memory load onto the system. Even if it is accessed the same by threads and warps within a block, switching blocks out may still mean swapping that data on each context switch.
 
@@ -248,8 +262,7 @@ We can look into the profile tools to try and figure out the causes behind this 
 
 ![Memory Report - Shared](img/report_shared_mem.png)
 
-
-TODO: put in relevant profiling revelations
+The first thing we see is that the Constant and Global memory accesses are functionally identical; the little variation shown can be explained away as noise. The next thing to note is that the primary difference in where memory requests are happening are in relation to whether we're pulling global memory from the Unified Cache (in the Global and Constant cases), or from Shared Memory (in the Shared case); most every access upstream from there looks the same.
 
 According to Rob Farber's book, *Cuda Application Design and Development* (see chapter 5), any global memory that is read-only and accessed in a `const` fashion can end up optimized to act like Constant memory by the compiler, which explains why the constant-memory approach offers no significant speedup. Specifically, accesses end up going directly to the L1 cache.
 
@@ -274,8 +287,6 @@ Let's investigate the following chart, comparing the effects of different CUDA b
 The first thing we see is a lot of inefficiency for having one thread handle more than one AES block. While this may seem strange, there is some sense in having each kernel do less overall work; when they are able to run for less time, and require access to less overall data, they apparently don't step on each others' toes as much. I imagine the context switching with longer kernel executions led to some degree of these issues.
 
 As for the block size itself, the only substantive differences we see are some increases in execution times across the larger number of blocks. This again speaks to the sense in having more nimble chunks of executable units available to our scheduler.
-
-#### TODO: see if memory still acts like this with more ablocks per thread, or with different block sizes
 
 ## References
 
