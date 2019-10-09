@@ -228,8 +228,11 @@ With a few modes by which we accessed the memory for the `RoundKey` and `SBox` v
 
 So, the elephant in the room is that passing the `SBox` and `RoundKey` variables to the global kernel calls as parameters is a **terrible** idea.
 
-TODO: expand upon this, use profiling tools
+![Memory Report - Parameter](img/report_parameter.png)
 
+Here, we see a lot more calls to device memory than the other profiles (shown in the section below), and a lot more instances where the memory pipes are busy, and/or the L2 cache ends up missing. This relates to how much data we're putting on each kernel; if each one is treating this struct full of some 752 bytes as a potentially separate variable, it stands to reason that we're putting a lot of redundant memory load onto the system. Even if it is accessed the same by threads and warps within a block, switching blocks out may still mean swapping that data on each context switch.
+
+So let's look at the previous chart without that pesky outlier:
 
 ![Effects of memory mode on performance](img/MemAccessModeChart.png)
 
@@ -238,6 +241,13 @@ Looking a little more closely at our different modes of accessing memory, we see
 What could cause this? Certainly, the distinctions between global memory, constant memory, and shared memory should have some kind of performance implication, right?
 
 We can look into the profile tools to try and figure out the causes behind this anomaly:
+
+![Memory Report - Global](img/report_global_mem.png)
+
+![Memory Report - Constant](img/report_constant_mem.png)
+
+![Memory Report - Shared](img/report_shared_mem.png)
+
 
 TODO: put in relevant profiling revelations
 
@@ -252,6 +262,18 @@ While this is underwhelming for academic comparison, it does show the incredible
 Looking at the accesses themselves, it looks like our local state is being loaded/stored into local (cached) memory. Since so many of our operations are purely dependent on the local state, surely we could force some of that into registers to reduce overhead, right?
 
 Unfortunately, this is where I run into an issue; the CUDA compiler *really* doesn't want me to be able to force an array (even a static one) into registers. For most of our applications here, we end up occupying 45-55 registers per thread anyhow; fitting an additional 16 in for the sake of the working state apparently did not cross the compiler's mind. While there might be a way to refactor around this, I'm not aware of a good path to do so.
+
+### Block Configurations
+
+As mentioned before, I allow for both one cuda thread to handle multiple AES blocks, and for a configurable number of CUDA threads to execute within one CUDA block.
+
+Let's investigate the following chart, comparing the effects of different CUDA block sizes, as well as how many AES blocks each thread encrypts:
+
+![Block size chart](img/BlockSizeChart.png)
+
+The first thing we see is a lot of inefficiency for having one thread handle more than one AES block. While this may seem strange, there is some sense in having each kernel do less overall work; when they are able to run for less time, and require access to less overall data, they apparently don't step on each others' toes as much. I imagine the context switching with longer kernel executions led to some degree of these issues.
+
+As for the block size itself, the only substantive differences we see are some increases in execution times across the larger number of blocks. This again speaks to the sense in having more nimble chunks of executable units available to our scheduler.
 
 #### TODO: see if memory still acts like this with more ablocks per thread, or with different block sizes
 
