@@ -222,17 +222,13 @@ However, we have identified a number of tunable parameters that we can use to ad
 
 It is worth noting, before we go further, that while ECB encryption, CTR encryption, and CTR decryption all have functionally identical execution times, the same cannot be said for ECB decryption, which often runs close to twice as long. Why is that? Most of the encryption/decryption steps are nearly identical and very symmetric; however, the **Mix Columns** step contains a huge computational load for decryption that did not exist for encryption.
 
-Let's see what that looks like in the profiler:
+Let's see what that looks like in the profiler, with the baseline in green being the Encryption:
 
-###### Encryption
+![Encryption vs Decryption](img/globalmem_encryptdecrypt.png)
 
-![Encryption Image](img/globalmem_encrypt.png)
+There's a lot to see here, certainly. One thing we end up noting is that there's more computing going on overall. However, it looks like the function calls within the inverse mix columns steps are putting a lot of data into and out of memory, in all manner of convoluted ways; the increase in steps performed in what seems computational is actually hurting our memory usage rather significantly. It gets bad enough as to mix in truly global memory, which we can see from the L2 hit rate. This ends up allowing for a lot of computation to take place in the cracks, but the memory accesses do a number on the overall performance.
 
-###### Decryption
-
-![Decryption Image](img/globalmem_decrypt.png)
-
-TODO: explain the difference, and show the Speed of Light graph that points to it as well.
+It is possible that a more targeted approach might be able to help with this problem; reasonably, most of the computations done within both `Mix columns` steps could be replaced by some good inline assembly, and stay as operations upon registers. Unfortunately, such an optimization is slightly out of the scope of this project.
 
 ### Memory Modes
 
