@@ -100,11 +100,11 @@ namespace AES {
 			return result;
 		}
 		__host__ __device__  uint8_t gfmult13(uint8_t x) {
-			uint8_t result = gfmult2(gfmult2(gfmult2(x) ^ x)) ^ x;
+			uint8_t result = gfmult2(gfmult2(gfmult3(x))) ^ x;
 			return result;
 		}
 		__host__ __device__  uint8_t gfmult14(uint8_t x) {
-			uint8_t result = gfmult2(gfmult2(gfmult2(x) ^ x) ^ x);
+			uint8_t result = gfmult2(gfmult2(gfmult3(x)) ^ x);
 			return result;
 		}
 
@@ -411,10 +411,7 @@ namespace AES {
 							uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox) {
 			//set up current state
 			State curState;
-			memcpy(&curState.data[0], idata + 0, 4 * sizeof(uint8_t));
-			memcpy(&curState.data[1], idata + 4, 4 * sizeof(uint8_t));
-			memcpy(&curState.data[2], idata + 8, 4 * sizeof(uint8_t));
-			memcpy(&curState.data[3], idata + 12, 4 * sizeof(uint8_t));
+			memcpy(&curState.data[0], idata, 16 * sizeof(uint8_t));
 
 			//encrypt
 			addKey(&curState, roundkey, 0);
@@ -429,20 +426,14 @@ namespace AES {
 			addKey(&curState, roundkey, Nkvars[1]);
 
 			//copy to output
-			memcpy(&odata[0], &curState.data[0], 4 * sizeof(uint8_t));
-			memcpy(&odata[4], &curState.data[1], 4 * sizeof(uint8_t));
-			memcpy(&odata[8], &curState.data[2], 4 * sizeof(uint8_t));
-			memcpy(&odata[12], &curState.data[3], 4 * sizeof(uint8_t));
+			memcpy(&odata[0], &curState.data[0], 16 * sizeof(uint8_t));
 		}
 
 		__device__ void Decrypt(uint8_t* idata, uint8_t* odata,
 					uint8_t* roundkey, uint8_t* sbox, uint8_t* rsbox) {
 			//set up current state
 			State curState;
-			memcpy(&curState.data[0], idata + 0, 4 * sizeof(uint8_t));
-			memcpy(&curState.data[1], idata + 4, 4 * sizeof(uint8_t));
-			memcpy(&curState.data[2], idata + 8, 4 * sizeof(uint8_t));
-			memcpy(&curState.data[3], idata + 12, 4 * sizeof(uint8_t));
+			memcpy(&curState.data[0], idata, 16 * sizeof(uint8_t));
 
 			//decrypt
 			addKey(&curState, roundkey, Nkvars[1]);
@@ -457,10 +448,7 @@ namespace AES {
 			addKey(&curState, roundkey, 0);
 
 			//copy to output
-			memcpy(&odata[0], &curState.data[0], 4 * sizeof(uint8_t));
-			memcpy(&odata[4], &curState.data[1], 4 * sizeof(uint8_t));
-			memcpy(&odata[8], &curState.data[2], 4 * sizeof(uint8_t));
-			memcpy(&odata[12], &curState.data[3], 4 * sizeof(uint8_t));
+			memcpy(&odata[0], &curState.data[0], 16 * sizeof(uint8_t));
 		}
 
 

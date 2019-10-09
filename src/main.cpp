@@ -21,7 +21,7 @@ const unsigned int RANDSEED = 0xbad1bad2;
 const unsigned int RANDSEED2 = 0x0123fed5;
 const unsigned int RANDSEED3 = 0x56781234;
 
-const int SIZE = 1 << 16; // feel free to change the size of array
+const int SIZE = 1 << 24; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 #if OFFPOT
 static unsigned int ASIZE = NPOT;
