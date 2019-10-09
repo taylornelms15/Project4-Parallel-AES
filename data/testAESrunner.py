@@ -8,6 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 MEMORY_MODES = ["Global", "Shared_Memory", "Parameter", "Shared_Key_Only", "Shared_SBox_Only", "Global_Constant"]
+BLOCK_SIZES = [32, 64, 128, 192, 256, 384, 512, 768, 1024]
+NUM_BLOCKS_PER_THREAD = [1, 2, 4, 8]
 
 baseExecutablePath = "../build/Release/cis565_aes_test.exe"
 imgPath = "../img/blade_model.jpg"
@@ -107,7 +109,7 @@ def getAverageRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerTh
 
     runResults = list(getRunResults(memoryMode, blockSize, keySize, blocksPerThread))
 
-    for i in range(1,50):
+    for i in range(1,10):
         nextResults = list(getRunResults(memoryMode, blockSize, keySize, blocksPerThread))
         for j in range(4):
             runResults[j] *= i / (i + 1.0)
@@ -152,6 +154,30 @@ def getRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerThread = 
 
     return (ecbEnc, ecbDec, ctrEnc, ctrDec)
 
+def testBlockSize(keySize = 256, memMode = MEMORY_MODES[0]):
+    resultTuples = []
+    for blockSize in BLOCK_SIZES:
+        bptResults = []
+        for blocksPerThread in NUM_BLOCKS_PER_THREAD:
+            ctrTime = getAverageRunResults(memMode, blockSize, keySize, blocksPerThread)[2]
+            bptResults.append(ctrTime)
+        resultTuples.append(tuple(bptResults))
+
+
+    tupleTitles = [str(x) + " aes blocks per thread" for x in NUM_BLOCKS_PER_THREAD]
+    groupTitles = [str(x) for x in BLOCK_SIZES]
+    xTitle = "Number of CUDA threads per block"
+    yTitle = "Completion Time (ms)"
+    chartTitle = "Performance of different workload distributions"
+    chartSubtitle = "16.78MB Input, %s-bit AES, CTR Encryption time" % (keySize)
+
+
+    getGroupedBarChart(resultTuples, tupleTitles, groupTitles,\
+            xTitle, yTitle, chartTitle, chartSubtitle)
+
+    
+
+
 def testMemoryModes(blockSize = 256, keySize = 256, blocksPerThread = 1):
     results = {}
     resultTuples = []
@@ -180,7 +206,8 @@ def main():
    
     #transformPicture(imgPath)
 
-    results = testMemoryModes(64, 192)
+    #results = testMemoryModes(64, 192)
+    results = testBlockSize(192)
     for k, v in results.items():
         print("%s\t%s" % (k, v))
 
