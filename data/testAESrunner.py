@@ -154,7 +154,7 @@ def getRunResults(memoryMode, blockSize = 256, keySize = 256, blocksPerThread = 
 
     return (ecbEnc, ecbDec, ctrEnc, ctrDec)
 
-def testBlockSize(keySize = 256, memMode = MEMORY_MODES[0]):
+def testBlockSize(keySize = 256, memMode = MEMORY_MODES[1]):
     resultTuples = []
     for blockSize in BLOCK_SIZES:
         bptResults = []
@@ -208,9 +208,6 @@ def main():
 
     #results = testMemoryModes(64, 192)
     results = testBlockSize(192)
-    for k, v in results.items():
-        print("%s\t%s" % (k, v))
-
 
 
 if __name__ == "__main__":
